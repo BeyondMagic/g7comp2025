@@ -174,8 +174,8 @@ int main(void) {
 A partir da raiz do projeto, execute os seguintes comandos:
 
 ```bash
-flex lexer/lexer.l
-bison -d parser/parser.y
+flex src/lexer.l
+bison -d src/parser.y
 ```
 
 ### 3.2 Compilação do executável usando GCC
@@ -189,7 +189,7 @@ gcc -o compilador lex.yy.c parser.tab.c -lfl
 Execute o programa com o comando:
 
 ```bash
-./a.out
+./compilador
 ```
 
 Teste digitando uma expressão como:
