@@ -19,6 +19,10 @@ Universidade de Brasília (UnB)
     yylval.intValue = atoi(yytext);
     return NUM;
 }
+"="     { return '='; }
+";"     { return ';'; }
+"{"     { return '{'; }
+"}"     { return '}'; }
 "+"     { return PLUS; }
 "-"     { return MINUS; }
 "*"     { return TIMES; }

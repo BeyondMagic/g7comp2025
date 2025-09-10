@@ -26,6 +26,17 @@ void yyerror(const char *s);
 
 %%
 
+program:
+      /* vazio */
+    | program stmt
+    ;
+
+stmt:
+       IDENT '=' expr ';'                
+    | expr ';'                           { printf("Expressão avaliada = %d\n", $1); }
+    | '{' program '}'                    { /* bloco */ }
+    ;
+
 expr:
       expr PLUS expr    { $$ = $1 + $3; }
     | expr MINUS expr   { $$ = $1 - $3; }
