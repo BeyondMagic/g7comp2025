@@ -30,3 +30,9 @@ bison -d parser/parser.y
 gcc -o c2lua lex.yy.c parser.tab.c src/*.c -lfl
 ./c2lua < tests/exemplo.c > out.lua
 ```
+
+# Testes
+
+A pasta `tests/` contém arquivos `.c` de entrada e os correspondentes `.lua` esperados. Use `diff` para comparar a saída gerada com a esperada.
+
+Padrão de nomenclatura: `descricao_curta_teste.c` para entrada, e `descricao_curta_teste.lua` para saída esperada.
