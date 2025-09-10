@@ -31,6 +31,16 @@ gcc -o c2lua lex.yy.c parser.tab.c src/*.c -lfl
 ./c2lua < tests/exemplo.c > out.lua
 ```
 
+# Sprints
+
+- [1ª sprint](./docs/sprints/1.md);
+- 2ª sprint;
+- 3ª sprint;
+- 4ª sprint;
+- 5ª sprint;
+- 6ª sprint;
+- 7ª sprint;
+
 # Testes
 
 A pasta `tests/` contém arquivos `.c` de entrada e os correspondentes `.lua` esperados. Use `diff` para comparar a saída gerada com a esperada.
