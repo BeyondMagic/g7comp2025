@@ -31,7 +31,7 @@ gcc -o c2lua lex.yy.c parser.tab.c src/*.c -lfl
 ./c2lua < tests/exemplo.c > out.lua
 ```
 
-# Sprints
+# Documentação de cada sprint
 
 - [1ª sprint](./docs/sprints/1.md);
 - 2ª sprint;
