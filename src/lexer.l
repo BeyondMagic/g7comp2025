@@ -13,7 +13,7 @@ Universidade de Brasília (UnB)
 %%
 
 "//".*     { /* Ignorar comentários de linha */ }
-[a-zA-Z][a-zA-Z0-9_]*  { yylval.id = strdup(yytext); return IDENT; }
+[a-zA-Z_][a-zA-Z0-9_]*  { yylval.id = strdup(yytext); return IDENT; }
 "/*"([^*]|\*+[^*/])*\*+\/    { /* Ignorar comentários de bloco */ }
 [0-9]+  {
     yylval.intValue = atoi(yytext);
