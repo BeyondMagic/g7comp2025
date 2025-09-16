@@ -104,9 +104,3 @@ Este projeto demonstra a implementação de um interpretador **Lua** simplificad
 O escopo cobre os conceitos fundamentais de compiladores: análise léxica, análise sintática, construção de AST e interpretação.
 
 O projeto oferece uma base sólida para futuras extensões e serve como excelente material educacional para o estudo de compiladores e interpretadores.
-
-## Histórico de Versão
-
-| Versão | Data       | Descrição                                                                 | Autor(es)       |
-| ------ | ---------- | ------------------------------------------------------------------------- | --------------- |
-| `1.0`  | 16/09/2025 | Criação da página "Escopo" contendo informações sobre o escopo do projeto | Lívia Rodrigues |
