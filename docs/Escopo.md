@@ -68,9 +68,9 @@ O interpretador é capaz de executar operações básicas como atribuições de 
 
 ---
 
-## 📂 Estrutura do Projeto
+## Estrutura do Projeto
 
-### 📖 Documentação (`/docs`)
+### Documentação (`/docs`)
 
 - `Escopo.md`: Documento de escopo do projeto
 - `Glossário de termos.md`: Definições e termos utilizados
@@ -85,12 +85,12 @@ O interpretador é capaz de executar operações básicas como atribuições de 
 - `lexer.l`: Especificação do analisador léxico
 - `parser.y`: Especificação do analisador sintático
 
-### 🧪 Testes (`/tests`)
+### Testes (`/tests`)
 
 - `variable.c`: Testes escritos em C
 - `variable.lua`: Testes escritos em Lua
 
-### 📑 Outros Arquivos
+### Outros Arquivos
 
 - `Cronograma.md`: Cronograma do projeto
 - `Makefile`: Arquivo de automação de compilação
