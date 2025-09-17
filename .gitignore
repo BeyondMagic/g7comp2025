@@ -1,0 +1,4 @@
+lex.yy.c
+parser.tab.h
+parser.tab.c
+c2lua
