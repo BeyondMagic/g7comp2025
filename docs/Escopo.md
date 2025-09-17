@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Desenvolver um interpretador simplificado para um subconjunto da linguagem **Lua**, utilizando **Flex** para análise léxica e **Bison** para análise sintática.  
+Desenvolver um compilador simplificado para um subconjunto da linguagem **Lua**, utilizando **Flex** para análise léxica e **Bison** para análise sintática.
 O interpretador é capaz de executar operações básicas como atribuições de variáveis, expressões aritméticas, controle de fluxo com estruturas condicionais e loops.
 
 ---
@@ -96,12 +96,3 @@ O interpretador é capaz de executar operações básicas como atribuições de 
 - `Cronograma.md`: Cronograma do projeto
 - `Makefile`: Arquivo de automação de compilação
 - `README.md`: Este documento
-
----
-
-## Conclusão
-
-Este projeto demonstra a implementação de um interpretador **Lua** simplificado usando as ferramentas **Flex** e **Bison**.  
-O escopo cobre os conceitos fundamentais de compiladores: análise léxica, análise sintática, construção de AST e interpretação.
-
-O projeto oferece uma base sólida para futuras extensões e serve como excelente material educacional para o estudo de compiladores e interpretadores.
