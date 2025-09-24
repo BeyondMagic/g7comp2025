@@ -20,7 +20,6 @@ O interpretador é capaz de executar operações básicas como atribuições de 
 
 - **Aritméticos**: `+`, `-`, `*`, `/`, `%`, `^`
 - **Comparação**: `==`, `~=`, `<`, `>`, `<=`, `>=`
-- **Lógicos**: `and`, `or`, `not`
 
 ### Estruturas de Controle
 
