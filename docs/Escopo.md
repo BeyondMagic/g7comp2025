@@ -76,7 +76,9 @@ O interpretador é capaz de executar operações básicas como atribuições de 
 - `Guia - Configuração do ambiente de desenvolvimento.md`: Passo a passo para preparar o ambiente
 - `Guia - Projeto de um compilador.md`: Guia conceitual do compilador
 - `Trabalho de Compiladores.md`: Documento principal do trabalho
+- `tokens.md`: Tabela de tokens do projeto (léxico)
 - `sprints/`: Planejamento das entregas
+
 
 ### ⚙️ Código Fonte (`/src`)
 
