@@ -27,7 +27,7 @@
 | Operador      | `>`              | GT         | -                      |
 | Operador      | `>=`             | GEQ        | -                      |
 | Operador      | `&&`             | AND        | -                      |
-| Operador      | `||`             | OR         | -                      |
+| Operador      | `ll`             | OR         | -                      |
 | Operador      | `!`              | NOT        | -                      |
 | Símbolo       | `(`              | LPAREN     | -                      |
 | Símbolo       | `)`              | RPAREN     | -                      |
