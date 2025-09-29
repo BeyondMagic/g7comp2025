@@ -4,7 +4,7 @@ Objetivo: construir um compilador que lê um subconjunto de C e transpila para L
 
 Resumo do MVP de linguagem suportada:
 - Tipos: int, float, bool (true/false), char (como número), string opcional.
-- Estruturas: declaração de variáveis, atribuição, expressões aritméticas/lógicas, if/else, while, for, função (definição/chamada) e return.
+- Estruturas: declaração de variáveis, atribuição, expressões aritméticas/lógicas, if/else, while, função (definição/chamada) e return.
 - I/O: mapeamento simples printf/puts -> print; scanf opcional.
 - Saída Lua: usar local para variáveis, funções Lua equivalentes, operadores com mesma semântica; arrays opcionais como tabelas.
 
@@ -34,12 +34,9 @@ gcc -o c2lua lex.yy.c parser.tab.c src/*.c -lfl
 # Documentação de cada sprint
 
 - [1ª sprint](./docs/sprints/1.md);
-- 2ª sprint;
+- [2ª sprint](./docs/sprints/2.md);
 - 3ª sprint;
 - 4ª sprint;
-- 5ª sprint;
-- 6ª sprint;
-- 7ª sprint;
 
 # Testes
 
