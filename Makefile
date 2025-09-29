@@ -1,30 +1,38 @@
+# Simple build for CLI that prints AST of expressions (debug tool)
+# Requires: flex, bison, gcc
+# Targets: make cli, make clean, make test
+
 CC = gcc
+CFLAGS = -Wall -Wextra -std=c11 -O2 -I./src
+LDFLAGS = 
 LEX = flex
 YACC = bison
-CFLAGS = -Wall
-TARGET = c2lua
 
-SRC = src/main.c
-LEX_SRC = src/lexer.l
-YACC_SRC = src/parser.y
+# Outputs from Flex/Bison
+PARSER_C = parser/parser.tab.c
+PARSER_H = parser/parser.tab.h
+LEXER_C  = lexer/lex.yy.c
 
-LEX_OUT = lex.yy.c
-YACC_OUT = parser.tab.c
-YACC_HEADER = parser.tab.h
+OBJS = $(PARSER_C) $(LEXER_C) src/ast.c src/main.c
 
-all: $(TARGET)
+all: cli
 
-$(TARGET): $(LEX_OUT) $(YACC_OUT) $(SRC)
-	$(CC) $(CFLAGS) -o $(TARGET) $(LEX_OUT) $(YACC_OUT) $(SRC) -lfl
+cli: $(OBJS)
+	$(CC) $(CFLAGS) -o c2lua $(OBJS) $(LDFLAGS)
 
-$(LEX_OUT): $(LEX_SRC)
-	$(LEX) $(LEX_SRC)
+$(PARSER_C) $(PARSER_H): parser/parser.y src/ast.h
+	$(YACC) -d -v -Wcounterexamples -o $(PARSER_C) parser/parser.y
 
-$(YACC_OUT): $(YACC_SRC)
-	$(YACC) -d $(YACC_SRC)
+$(LEXER_C): lexer/lexer.l $(PARSER_H)
+	$(LEX) -o $(LEXER_C) lexer/lexer.l
 
 clean:
-	rm -f $(TARGET) $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER)
+	rm -f c2lua $(PARSER_C) $(PARSER_H) $(LEXER_C) parser/parser.output
+	rm -rf build
 
-test: all
-	./$(TARGET) < tests/variable.c
+test: cli
+	@echo "== Running sample tests =="
+	@./c2lua tests/expr1.txt | diff -u - tests/expr1.ast && echo "expr1 ✓" || (echo "expr1 ✗"; exit 1)
+	@./c2lua tests/expr2.txt | diff -u - tests/expr2.ast && echo "expr2 ✓" || (echo "expr2 ✗"; exit 1)
+	@./c2lua tests/expr3.txt | diff -u - tests/expr3.ast && echo "expr3 ✓" || (echo "expr3 ✗"; exit 1)
+	@echo "All tests passed."
