@@ -26,9 +26,22 @@ $(YACC_OUT): $(YACC_SRC)
 clean:
 	rm -f $(TARGET) $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER)
 
+TEST_CASES = \
+	expressions \
+	variable
+
 test: all
 	@echo "== Running sample tests =="
-	@./c2lua tests/expr1.txt | diff -u - tests/expr1.ast && echo "expr1 ✓" || (echo "expr1 ✗"; exit 1)
-	@./c2lua tests/expr2.txt | diff -u - tests/expr2.ast && echo "expr2 ✓" || (echo "expr2 ✗"; exit 1)
-	@./c2lua tests/expr3.txt | diff -u - tests/expr3.ast && echo "expr3 ✓" || (echo "expr3 ✗"; exit 1)
+	@for case in $(TEST_CASES); do \
+		output=$$(./c2lua tests/$$case.c); \
+		expected=$$(cat tests/$$case.lua); \
+		printf '%s' "-- $$case... "; \
+		if [ "$$output" = "$$expected" ]; then \
+			echo "ok"; \
+		else \
+			echo "fail"; \
+			printf 'Expected:\n%s\n\nGot:\n%s\n' "$$expected" "$$output"; \
+			exit 1; \
+		fi; \
+	done
 	@echo "All tests passed."
