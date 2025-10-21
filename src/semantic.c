@@ -1,0 +1,433 @@
+#include "semantic.h"
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
+static void semantic_error(const char *fmt, ...);
+static int analyze_function(SemanticInfo *info, AstFunction *fn);
+static int analyze_block(SemanticInfo *info, AstFunction *fn, SymbolTable *symbols, AstBlock *block, int push_scope, int *has_return);
+static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *symbols, AstStmt *stmt, int *has_return);
+static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
+static int ensure_assignable(TypeKind target, TypeKind value);
+static int is_numeric(TypeKind type);
+static TypeKind arithmetic_result(TypeKind left, TypeKind right);
+
+static int semantic_error_flag = 0;
+
+int semantic_analyze(AstProgram *program, SemanticInfo *info)
+{
+	if (!program || !info)
+	{
+		return 0;
+	}
+
+	semantic_error_flag = 0;
+	function_table_init(&info->functions);
+
+	for (size_t i = 0; i < program->functions.count; ++i)
+	{
+		AstFunction *fn = program->functions.items[i];
+		if (!function_table_add(&info->functions, fn->name, fn->return_type, &fn->params))
+		{
+			semantic_error("duplicated function '%s'", fn->name);
+			semantic_info_free(info);
+			return 0;
+		}
+	}
+
+	int ok = 1;
+	for (size_t i = 0; i < program->functions.count && ok; ++i)
+	{
+		ok = analyze_function(info, program->functions.items[i]);
+	}
+
+	if (!ok || semantic_error_flag)
+	{
+		semantic_info_free(info);
+		return 0;
+	}
+
+	return 1;
+}
+
+void semantic_info_free(SemanticInfo *info)
+{
+	if (!info)
+	{
+		return;
+	}
+	function_table_free(&info->functions);
+}
+
+static void semantic_error(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	fputs("semantic error: ", stderr);
+	vfprintf(stderr, fmt, args);
+	fputc('\n', stderr);
+	va_end(args);
+	semantic_error_flag = 1;
+}
+
+static int analyze_function(SemanticInfo *info, AstFunction *fn)
+{
+	SymbolTable symbols;
+	symbol_table_init(&symbols);
+	symbol_table_push_scope(&symbols);
+
+	for (size_t i = 0; i < fn->params.count; ++i)
+	{
+		AstParam *param = &fn->params.items[i];
+		if (param->type == TYPE_VOID)
+		{
+			semantic_error("parameter '%s' in function '%s' cannot be void", param->name, fn->name);
+			symbol_table_free(&symbols);
+			return 0;
+		}
+		if (!symbol_table_add(&symbols, param->name, param->type))
+		{
+			semantic_error("duplicate parameter '%s' in function '%s'", param->name, fn->name);
+			symbol_table_free(&symbols);
+			return 0;
+		}
+	}
+
+	int has_return = (fn->return_type == TYPE_VOID) ? 1 : 0;
+	if (!analyze_block(info, fn, &symbols, &fn->body, 0, &has_return))
+	{
+		symbol_table_free(&symbols);
+		return 0;
+	}
+
+	if (fn->return_type != TYPE_VOID && !has_return)
+	{
+		semantic_error("function '%s' must return a value", fn->name);
+		symbol_table_free(&symbols);
+		return 0;
+	}
+
+	fn->has_mandatory_return = has_return ? 1 : 0;
+	symbol_table_free(&symbols);
+	return 1;
+}
+
+static int analyze_block(SemanticInfo *info, AstFunction *fn, SymbolTable *symbols, AstBlock *block, int push_scope, int *has_return)
+{
+	if (!block)
+	{
+		return 1;
+	}
+
+	if (push_scope)
+	{
+		symbol_table_push_scope(symbols);
+	}
+
+	for (size_t i = 0; i < block->statements.count; ++i)
+	{
+		AstStmt *stmt = block->statements.items[i];
+		if (!analyze_statement(info, fn, symbols, stmt, has_return))
+		{
+			if (push_scope)
+			{
+				symbol_table_pop_scope(symbols);
+			}
+			return 0;
+		}
+	}
+
+	if (push_scope)
+	{
+		symbol_table_pop_scope(symbols);
+	}
+
+	return 1;
+}
+
+static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *symbols, AstStmt *stmt, int *has_return)
+{
+	if (!stmt)
+	{
+		return 1;
+	}
+
+	switch (stmt->kind)
+	{
+	case STMT_BLOCK:
+		if (!analyze_block(info, fn, symbols, &stmt->data.block, 1, has_return))
+		{
+			return 0;
+		}
+		break;
+	case STMT_DECL:
+	{
+		if (stmt->data.decl.type == TYPE_VOID)
+		{
+			semantic_error("variable '%s' in function '%s' cannot be void", stmt->data.decl.name, fn->name);
+			return 0;
+		}
+		if (!symbol_table_add(symbols, stmt->data.decl.name, stmt->data.decl.type))
+		{
+			semantic_error("duplicate declaration of '%s' in function '%s'", stmt->data.decl.name, fn->name);
+			return 0;
+		}
+		if (stmt->data.decl.init)
+		{
+			TypeKind expr_type = analyze_expression(info, symbols, stmt->data.decl.init);
+			stmt->data.decl.init->type = expr_type;
+			if (!ensure_assignable(stmt->data.decl.type, expr_type))
+			{
+				semantic_error("cannot initialize '%s' of type %s with expression of type %s in function '%s'",
+							   stmt->data.decl.name,
+							   ast_type_name(stmt->data.decl.type),
+							   ast_type_name(expr_type),
+							   fn->name);
+				return 0;
+			}
+		}
+		break;
+	}
+	case STMT_ASSIGN:
+	{
+		const Symbol *symbol = symbol_table_lookup(symbols, stmt->data.assign.name);
+		if (!symbol)
+		{
+			semantic_error("assignment to undeclared identifier '%s' in function '%s'",
+						   stmt->data.assign.name,
+						   fn->name);
+			return 0;
+		}
+		stmt->data.assign.type = symbol->type;
+		TypeKind expr_type = analyze_expression(info, symbols, stmt->data.assign.value);
+		stmt->data.assign.value->type = expr_type;
+		if (!ensure_assignable(symbol->type, expr_type))
+		{
+			semantic_error("cannot assign expression of type %s to variable '%s' of type %s in function '%s'",
+						   ast_type_name(expr_type),
+						   stmt->data.assign.name,
+						   ast_type_name(symbol->type),
+						   fn->name);
+			return 0;
+		}
+		break;
+	}
+	case STMT_EXPR:
+		if (stmt->data.expr)
+		{
+			analyze_expression(info, symbols, stmt->data.expr);
+		}
+		break;
+	case STMT_RETURN:
+	{
+		if (stmt->data.expr)
+		{
+			TypeKind expr_type = analyze_expression(info, symbols, stmt->data.expr);
+			stmt->data.expr->type = expr_type;
+			if (fn->return_type == TYPE_VOID)
+			{
+				semantic_error("void function '%s' should not return a value", fn->name);
+				return 0;
+			}
+			if (!ensure_assignable(fn->return_type, expr_type))
+			{
+				semantic_error("return type mismatch in function '%s': expected %s but found %s",
+							   fn->name,
+							   ast_type_name(fn->return_type),
+							   ast_type_name(expr_type));
+				return 0;
+			}
+			*has_return = 1;
+		}
+		else
+		{
+			if (fn->return_type != TYPE_VOID)
+			{
+				semantic_error("function '%s' must return a value", fn->name);
+				return 0;
+			}
+			*has_return = 1;
+		}
+		break;
+	}
+	}
+
+	return 1;
+}
+
+static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr)
+{
+	if (!expr)
+	{
+		return TYPE_UNKNOWN;
+	}
+
+	switch (expr->kind)
+	{
+	case EXPR_INT_LITERAL:
+		expr->type = TYPE_INT;
+		return expr->type;
+	case EXPR_FLOAT_LITERAL:
+		expr->type = TYPE_FLOAT;
+		return expr->type;
+	case EXPR_BOOL_LITERAL:
+		expr->type = TYPE_BOOL;
+		return expr->type;
+	case EXPR_IDENTIFIER:
+	{
+		const Symbol *symbol = symbol_table_lookup(symbols, expr->data.identifier);
+		if (!symbol)
+		{
+			semantic_error("use of undeclared identifier '%s'", expr->data.identifier);
+			expr->type = TYPE_UNKNOWN;
+			return expr->type;
+		}
+		expr->type = symbol->type;
+		return expr->type;
+	}
+	case EXPR_UNARY:
+	{
+		TypeKind operand_type = analyze_expression(info, symbols, expr->data.unary.operand);
+		expr->data.unary.operand->type = operand_type;
+		if (expr->data.unary.op == UN_OP_NEG || expr->data.unary.op == UN_OP_POS)
+		{
+			if (!is_numeric(operand_type))
+			{
+				semantic_error("unary operator expects numeric operand");
+			}
+			expr->type = operand_type;
+		}
+		else if (expr->data.unary.op == UN_OP_NOT)
+		{
+			expr->type = TYPE_BOOL;
+		}
+		else
+		{
+			expr->type = operand_type;
+		}
+		return expr->type;
+	}
+	case EXPR_BINARY:
+	{
+		TypeKind left_type = analyze_expression(info, symbols, expr->data.binary.left);
+		TypeKind right_type = analyze_expression(info, symbols, expr->data.binary.right);
+		expr->data.binary.left->type = left_type;
+		expr->data.binary.right->type = right_type;
+
+		switch (expr->data.binary.op)
+		{
+		case BIN_OP_ADD:
+		case BIN_OP_SUB:
+		case BIN_OP_MUL:
+		case BIN_OP_DIV:
+			if (!is_numeric(left_type) || !is_numeric(right_type))
+			{
+				semantic_error("arithmetic operator expects numeric operands");
+			}
+			expr->type = arithmetic_result(left_type, right_type);
+			return expr->type;
+		case BIN_OP_MOD:
+			if (left_type != TYPE_INT || right_type != TYPE_INT)
+			{
+				semantic_error("mod operator expects integer operands");
+			}
+			expr->type = TYPE_INT;
+			return expr->type;
+		case BIN_OP_EQ:
+		case BIN_OP_NEQ:
+			if (!ensure_assignable(left_type, right_type) && !ensure_assignable(right_type, left_type))
+			{
+				semantic_error("comparison between incompatible types");
+			}
+			expr->type = TYPE_BOOL;
+			return expr->type;
+		case BIN_OP_LT:
+		case BIN_OP_LE:
+		case BIN_OP_GT:
+		case BIN_OP_GE:
+			if (!is_numeric(left_type) || !is_numeric(right_type))
+			{
+				semantic_error("relational operator expects numeric operands");
+			}
+			expr->type = TYPE_BOOL;
+			return expr->type;
+		}
+		break;
+	}
+	case EXPR_CALL:
+	{
+		const FunctionSignature *signature = function_table_find(&info->functions, expr->data.call.callee);
+		if (!signature)
+		{
+			semantic_error("call to unknown function '%s'", expr->data.call.callee);
+			expr->type = TYPE_UNKNOWN;
+			return expr->type;
+		}
+		if (expr->data.call.args.count != signature->params.count)
+		{
+			semantic_error("function '%s' expects %zu arguments but got %zu",
+						   signature->name,
+						   signature->params.count,
+						   expr->data.call.args.count);
+		}
+		size_t limit = expr->data.call.args.count < signature->params.count ? expr->data.call.args.count : signature->params.count;
+		for (size_t i = 0; i < limit; ++i)
+		{
+			AstExpr *arg = expr->data.call.args.items[i];
+			TypeKind arg_type = analyze_expression(info, symbols, arg);
+			arg->type = arg_type;
+			TypeKind expected = signature->params.items[i].type;
+			if (!ensure_assignable(expected, arg_type))
+			{
+				semantic_error("argument %zu of function '%s' expected %s but got %s",
+							   i + 1,
+							   signature->name,
+							   ast_type_name(expected),
+							   ast_type_name(arg_type));
+				return TYPE_UNKNOWN;
+			}
+		}
+		expr->type = signature->return_type;
+		return expr->type;
+	}
+	}
+
+	expr->type = TYPE_UNKNOWN;
+	return expr->type;
+}
+
+static int ensure_assignable(TypeKind target, TypeKind value)
+{
+	if (target == TYPE_UNKNOWN || value == TYPE_UNKNOWN)
+	{
+		return 1;
+	}
+	if (target == value)
+	{
+		return 1;
+	}
+	if (is_numeric(target) && is_numeric(value))
+	{
+		return 1;
+	}
+	if (target == TYPE_VOID || value == TYPE_VOID)
+	{
+		return target == value;
+	}
+	return 0;
+}
+
+static int is_numeric(TypeKind type)
+{
+	return type == TYPE_INT || type == TYPE_FLOAT;
+}
+
+static TypeKind arithmetic_result(TypeKind left, TypeKind right)
+{
+	if (left == TYPE_FLOAT || right == TYPE_FLOAT)
+	{
+		return TYPE_FLOAT;
+	}
+	return TYPE_INT;
+}
