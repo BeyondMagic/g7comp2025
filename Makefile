@@ -1,14 +1,10 @@
 CC = gcc
 LEX = flex
 YACC = bison
-CFLAGS = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -Isrc -I.
+CFLAGS = -Wall
 TARGET = c2lua
 
-SRC = src/main.c \
-	  src/ast.c \
-	  src/symbol_table.c \
-	  src/semantic.c \
-	  src/codegen_lua.c
+SRC = src/main.c
 LEX_SRC = src/lexer.l
 YACC_SRC = src/parser.y
 
@@ -21,11 +17,11 @@ all: $(TARGET)
 $(TARGET): $(LEX_OUT) $(YACC_OUT) $(SRC)
 	$(CC) $(CFLAGS) -o $(TARGET) $(LEX_OUT) $(YACC_OUT) $(SRC) -lfl
 
-$(LEX_OUT): $(LEX_SRC) $(YACC_HEADER)
+$(LEX_OUT): $(LEX_SRC)
 	$(LEX) $(LEX_SRC)
 
-$(YACC_OUT) $(YACC_HEADER): $(YACC_SRC) src/ast.h src/ast.c
-	cd src && $(YACC) -d --defines=../parser.tab.h -o ../parser.tab.c parser.y
+$(YACC_OUT): $(YACC_SRC)
+	$(YACC) -d $(YACC_SRC)
 
 clean:
 	rm -f $(TARGET) $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER)
