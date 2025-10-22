@@ -1,113 +1,75 @@
-#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_LINE 1024
+#include "ast.h"
+#include "codegen_lua.h"
+#include "semantic.h"
+#include "parser.tab.h"
 
-static void transpile_stream(FILE *in);
-static void emit_line(char *line);
-static void trim_trailing(char *line);
+static FILE *open_input(int argc, char **argv);
 
 int main(int argc, char **argv)
 {
-	FILE *in = stdin;
-
-	if (argc > 2)
+	FILE *input = open_input(argc, argv);
+	if (!input)
 	{
-		fprintf(stderr, "Uso: %s [arquivo.c]\n", argv[0]);
 		return EXIT_FAILURE;
 	}
 
-	if (argc == 2)
+	AstProgram *program = c2lua_parse(input);
+	if (!program)
 	{
-		in = fopen(argv[1], "r");
-		if (!in)
+		if (input != stdin)
 		{
-			fprintf(stderr, "Erro ao abrir %s: %s\n", argv[1], strerror(errno));
-			return EXIT_FAILURE;
+			fclose(input);
 		}
+		return EXIT_FAILURE;
 	}
 
-	transpile_stream(in);
-
-	if (in != stdin)
+	SemanticInfo sem_info;
+	if (!semantic_analyze(program, &sem_info))
 	{
-		fclose(in);
+		ast_program_destroy(program);
+		if (input != stdin)
+		{
+			fclose(input);
+		}
+		return EXIT_FAILURE;
+	}
+
+	codegen_lua_emit(stdout, program, &sem_info.functions);
+
+	semantic_info_free(&sem_info);
+	ast_program_destroy(program);
+
+	if (input != stdin)
+	{
+		fclose(input);
 	}
 
 	return EXIT_SUCCESS;
 }
 
-static void transpile_stream(FILE *in)
+static FILE *open_input(int argc, char **argv)
 {
-	char buffer[MAX_LINE];
-
-	while (fgets(buffer, sizeof(buffer), in))
+	if (argc > 2)
 	{
-		trim_trailing(buffer);
-		emit_line(buffer);
-	}
-}
-
-static void emit_line(char *line)
-{
-	char *cursor = line;
-
-	while (*cursor && isspace((unsigned char)*cursor))
-	{
-		cursor++;
+		fprintf(stderr, "Usage: %s [input.c]\n", argv[0]);
+		return NULL;
 	}
 
-	if (*cursor == '\0')
+	if (argc == 2)
 	{
-		return;
-	}
-
-	trim_trailing(cursor);
-
-	size_t len = strlen(cursor);
-	if (len == 0)
-	{
-		return;
-	}
-
-	if (cursor[len - 1] == ';')
-	{
-		cursor[len - 1] = '\0';
-		trim_trailing(cursor);
-	}
-
-	if (strncmp(cursor, "int ", 4) == 0)
-	{
-		char *rest = cursor + 4;
-		while (*rest && isspace((unsigned char)*rest))
+		FILE *file = fopen(argv[1], "r");
+		if (!file)
 		{
-			rest++;
+			fprintf(stderr, "failed to open '%s': %s\n", argv[1], strerror(errno));
+			return NULL;
 		}
-		if (*rest == '\0')
-		{
-			return;
-		}
-		printf("local %s\n", rest);
-		return;
+		return file;
 	}
 
-	printf("%s\n", cursor);
-}
-
-static void trim_trailing(char *line)
-{
-	size_t len = strlen(line);
-
-	while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-	{
-		line[--len] = '\0';
-	}
-
-	while (len > 0 && isspace((unsigned char)line[len - 1]))
-	{
-		line[--len] = '\0';
-	}
+	return stdin;
 }
