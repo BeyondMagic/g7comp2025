@@ -11,7 +11,6 @@ int yyerror(AstProgram **out_program, const char *msg);
 extern int yylex(void);
 extern FILE *yyin;
 static void parser_error_cleanup(AstProgram **out_program);
-
 %}
 
 %code requires {
@@ -27,19 +26,19 @@ static void parser_error_cleanup(AstProgram **out_program);
 %parse-param { AstProgram **out_program }
 
 %union {
-    long long intValue;
-    double floatValue;
-    char *id;
-    TypeKind type;
-    AstExpr *expr;
-    AstStmt *stmt;
-    AstBlock block;
-    AstStmtList stmt_list;
-    AstExprList expr_list;
-    AstParam param;
-    AstParamList param_list;
-    AstFunction *function;
-    AstProgram *program;
+  long long intValue;
+  double floatValue;
+  char *id;
+  TypeKind type;
+  AstExpr *expr;
+  AstStmt *stmt;
+  AstBlock block;
+  AstStmtList stmt_list;
+  AstExprList expr_list;
+  AstParam param;
+  AstParamList param_list;
+  AstFunction *function;
+  AstProgram *program;
 }
 
 %token <intValue> INT_LITERAL
@@ -55,6 +54,7 @@ static void parser_error_cleanup(AstProgram **out_program);
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 
+/* ---------- Precedência ---------- */
 %left PLUS MINUS
 %left TIMES DIVIDE MOD
 %right UMINUS
@@ -80,7 +80,6 @@ program
           *out_program = $1;
       }
     ;
-
 function_sequence
     : function_definition
       {
@@ -404,7 +403,7 @@ int yyerror(AstProgram **out_program, const char *msg)
 {
     (void)out_program;
     fprintf(stderr, "syntax error: %s\n", msg);
-  return 0;
+    return 0;
 }
 
 AstProgram *c2lua_parse(FILE *input)

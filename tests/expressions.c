@@ -1,5 +1,8 @@
-1 + 2 * 3;
-(4 + 5) / 2;
-10 % 3;
-true;
-false;
+int main()
+{
+	int a = 10;
+	int b = 20;
+	int sum = a + b;
+	printf("Sum: %d\n", sum);
+	return 0;
+}
