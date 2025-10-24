@@ -1,1 +1,0 @@
-wrong_assign.c:2:1: E004: atribuição incompatível: float ← int*

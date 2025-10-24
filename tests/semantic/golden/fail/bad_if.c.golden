@@ -1,1 +1,0 @@
-bad_if.c:1:5: E002: condição não booleana em if (use comparação explícita)

@@ -1,1 +1,0 @@
-int_plus_string.c:2:11: E001: tipo inválido em operação aritmética: int + string
