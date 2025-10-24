@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 COMPILER_CMD="${COMPILER_CMD:-compiler --semantic}"
