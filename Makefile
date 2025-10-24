@@ -16,6 +16,11 @@ LEX_OUT = lex.yy.c
 YACC_OUT = parser.tab.c
 YACC_HEADER = parser.tab.h
 
+SMOKE_DIR = tests/smoke
+SMOKE_SOURCES := $(wildcard $(SMOKE_DIR)/*.c)
+SMOKE_CASES := $(basename $(notdir $(SMOKE_SOURCES)))
+SEMANTIC_SCRIPT = scripts/run_semantic_tests.sh
+
 all: $(TARGET)
 
 $(TARGET): $(LEX_OUT) $(YACC_OUT) $(SRC)
@@ -30,22 +35,32 @@ $(YACC_OUT) $(YACC_HEADER): $(YACC_SRC) src/ast.h src/ast.c
 clean:
 	rm -f $(TARGET) $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER)
 
-TEST_CASES = \
-	expressions \
-	variable
-
 test: all
-	@echo "== Running sample tests =="
-	@for case in $(TEST_CASES); do \
-		output=$$(./c2lua tests/$$case.c); \
-		expected=$$(cat tests/$$case.lua); \
-		printf '%s' "-- $$case... "; \
-		if [ "$$output" = "$$expected" ]; then \
-			echo "ok"; \
-		else \
-			echo "fail"; \
-			printf 'Expected:\n%s\n\nGot:\n%s\n' "$$expected" "$$output"; \
-			exit 1; \
-		fi; \
-	done
-	@echo "All tests passed."
+	@echo "== Running smoke tests =="
+	@if [ -z "$(SMOKE_CASES)" ]; then \
+		echo "No smoke tests found under $(SMOKE_DIR)"; \
+	else \
+		for case in $(SMOKE_CASES); do \
+			input="$(SMOKE_DIR)/$$case.c"; \
+			expected_file="$(SMOKE_DIR)/$$case.lua"; \
+			if [ ! -f "$$expected_file" ]; then \
+				echo "Missing expected Lua file for $$case"; \
+				exit 1; \
+			fi; \
+			output=$$(./c2lua "$$input"); \
+			expected=$$(cat "$$expected_file"); \
+			printf '%s' "-- $$case... "; \
+			if [ "$$output" = "$$expected" ]; then \
+				echo "ok"; \
+			else \
+				echo "fail"; \
+				printf 'Expected:\n%s\n\nGot:\n%s\n' "$$expected" "$$output"; \
+				exit 1; \
+			fi; \
+		done; \
+		echo "All smoke tests passed."; \
+	fi
+
+semantic-test: all
+	@echo "== Running semantic tests =="
+	@COMPILER_CMD=./c2lua bash $(SEMANTIC_SCRIPT)
