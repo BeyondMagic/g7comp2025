@@ -149,6 +149,9 @@ static void ast_expr_destroy(AstExpr *expr)
 	case EXPR_IDENTIFIER:
 		free(expr->data.identifier);
 		break;
+	case EXPR_STRING_LITERAL:
+		free(expr->data.string_literal);
+		break;
 	case EXPR_BINARY:
 		ast_expr_destroy(expr->data.binary.left);
 		ast_expr_destroy(expr->data.binary.right);
@@ -329,6 +332,15 @@ AstExpr *ast_expr_make_bool(int value)
 	return expr;
 }
 
+AstExpr *ast_expr_make_string(char *value)
+{
+	AstExpr *expr = xcalloc(1, sizeof(AstExpr));
+	expr->kind = EXPR_STRING_LITERAL;
+	expr->type = TYPE_STRING;
+	expr->data.string_literal = value;
+	return expr;
+}
+
 AstExpr *ast_expr_make_identifier(char *name)
 {
 	AstExpr *expr = xcalloc(1, sizeof(AstExpr));
@@ -390,6 +402,10 @@ TypeKind ast_type_from_keyword(const char *kw)
 	{
 		return TYPE_BOOL;
 	}
+if (strcmp(kw, "string") == 0)
+	{
+		return TYPE_STRING;
+	}
 	if (strcmp(kw, "void") == 0)
 	{
 		return TYPE_VOID;
@@ -407,6 +423,8 @@ const char *ast_type_name(TypeKind type)
 		return "float";
 	case TYPE_BOOL:
 		return "bool";
+	case TYPE_STRING:
+		return "string";
 	case TYPE_VOID:
 		return "void";
 	case TYPE_UNKNOWN:

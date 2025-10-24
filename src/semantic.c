@@ -12,6 +12,7 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 static int ensure_assignable(TypeKind target, TypeKind value);
 static int is_numeric(TypeKind type);
 static TypeKind arithmetic_result(TypeKind left, TypeKind right);
+static TypeKind analyze_builtin_call(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
 
 static int semantic_error_flag = 0;
 
@@ -274,6 +275,9 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 	case EXPR_BOOL_LITERAL:
 		expr->type = TYPE_BOOL;
 		return expr->type;
+	case EXPR_STRING_LITERAL:
+		expr->type = TYPE_STRING;
+		return expr->type;
 	case EXPR_IDENTIFIER:
 	{
 		const Symbol *symbol = symbol_table_lookup(symbols, expr->data.identifier);
@@ -357,6 +361,12 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 	}
 	case EXPR_CALL:
 	{
+		TypeKind builtin = analyze_builtin_call(info, symbols, expr);
+		if (builtin != TYPE_UNKNOWN)
+		{
+			expr->type = builtin;
+			return expr->type;
+		}
 		const FunctionSignature *signature = function_table_find(&info->functions, expr->data.call.callee);
 		if (!signature)
 		{
@@ -407,6 +417,10 @@ static int ensure_assignable(TypeKind target, TypeKind value)
 	{
 		return 1;
 	}
+	if (target == TYPE_STRING || value == TYPE_STRING)
+	{
+		return target == TYPE_STRING && value == TYPE_STRING;
+	}
 	if (is_numeric(target) && is_numeric(value))
 	{
 		return 1;
@@ -430,4 +444,52 @@ static TypeKind arithmetic_result(TypeKind left, TypeKind right)
 		return TYPE_FLOAT;
 	}
 	return TYPE_INT;
+}
+
+static TypeKind analyze_builtin_call(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr)
+{
+	if (!expr || expr->kind != EXPR_CALL)
+	{
+		return TYPE_UNKNOWN;
+	}
+	const char *callee = expr->data.call.callee;
+	if (strcmp(callee, "printf") == 0)
+	{
+		if (expr->data.call.args.count == 0)
+		{
+			semantic_error("printf expects at least one argument");
+			return TYPE_UNKNOWN;
+		}
+		AstExpr *format = expr->data.call.args.items[0];
+		TypeKind format_type = analyze_expression(info, symbols, format);
+		format->type = format_type;
+		if (format_type != TYPE_STRING)
+		{
+			semantic_error("printf format argument must be string");
+		}
+		for (size_t i = 1; i < expr->data.call.args.count; ++i)
+		{
+			AstExpr *arg = expr->data.call.args.items[i];
+			TypeKind arg_type = analyze_expression(info, symbols, arg);
+			arg->type = arg_type;
+		}
+		return TYPE_INT;
+	}
+	if (strcmp(callee, "puts") == 0)
+	{
+		if (expr->data.call.args.count != 1)
+		{
+			semantic_error("puts expects exactly one argument");
+			return TYPE_UNKNOWN;
+		}
+		AstExpr *arg = expr->data.call.args.items[0];
+		TypeKind arg_type = analyze_expression(info, symbols, arg);
+		arg->type = arg_type;
+		if (arg_type != TYPE_STRING)
+		{
+			semantic_error("puts argument must be string");
+		}
+		return TYPE_INT;
+	}
+	return TYPE_UNKNOWN;
 }

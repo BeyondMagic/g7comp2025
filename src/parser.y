@@ -29,6 +29,7 @@ static void parser_error_cleanup(AstProgram **out_program);
   long long intValue;
   double floatValue;
   char *id;
+  char *string;
   TypeKind type;
   AstExpr *expr;
   AstStmt *stmt;
@@ -44,6 +45,7 @@ static void parser_error_cleanup(AstProgram **out_program);
 %token <intValue> INT_LITERAL
 %token <floatValue> FLOAT_LITERAL
 %token <id> IDENT
+%token <string> STRING_LITERAL
 %token KW_INT KW_FLOAT KW_BOOL KW_VOID
 %token RETURN
 %token TRUE FALSE
@@ -374,6 +376,10 @@ primary_expression
     | IDENT
       {
           $$ = ast_expr_make_identifier($1);
+      }
+    | STRING_LITERAL
+      {
+          $$ = ast_expr_make_string($1);
       }
     | LPAREN expression RPAREN
       {

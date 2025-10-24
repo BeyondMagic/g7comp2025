@@ -9,6 +9,7 @@ typedef enum
 	TYPE_INT,
 	TYPE_FLOAT,
 	TYPE_BOOL,
+	TYPE_STRING,
 	TYPE_VOID
 } TypeKind;
 
@@ -81,6 +82,7 @@ typedef struct AstExpr
 		EXPR_INT_LITERAL,
 		EXPR_FLOAT_LITERAL,
 		EXPR_BOOL_LITERAL,
+		EXPR_STRING_LITERAL,
 		EXPR_IDENTIFIER,
 		EXPR_BINARY,
 		EXPR_UNARY,
@@ -92,6 +94,7 @@ typedef struct AstExpr
 		long long int_value;
 		double float_value;
 		int bool_value;
+		char *string_literal;
 		char *identifier;
 		struct
 		{
@@ -189,6 +192,7 @@ AstStmt *ast_stmt_make_return(AstExpr *expr);
 AstExpr *ast_expr_make_int(long long value);
 AstExpr *ast_expr_make_float(double value);
 AstExpr *ast_expr_make_bool(int value);
+AstExpr *ast_expr_make_string(char *value);
 AstExpr *ast_expr_make_identifier(char *name);
 AstExpr *ast_expr_make_binary(AstBinaryOp op, AstExpr *left, AstExpr *right);
 AstExpr *ast_expr_make_unary(AstUnaryOp op, AstExpr *operand);

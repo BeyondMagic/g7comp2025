@@ -16,6 +16,50 @@ static char *yy_strdup(const char *src)
     memcpy(copy, src, len);
     return copy;
 }
+
+static char *yy_parse_string_literal(const char *src)
+{
+    size_t len = strlen(src);
+    char *buffer = malloc(len);
+    if (!buffer)
+    {
+        fprintf(stderr, "out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    size_t out = 0;
+    for (size_t i = 1; i + 1 < len; ++i)
+    {
+        char c = src[i];
+        if (c == '\\' && i + 1 < len)
+        {
+            char next = src[++i];
+            switch (next)
+            {
+            case 'n':
+                buffer[out++] = '\n';
+                break;
+            case 't':
+                buffer[out++] = '\t';
+                break;
+            case '\\':
+                buffer[out++] = '\\';
+                break;
+            case '"':
+                buffer[out++] = '"';
+                break;
+            default:
+                buffer[out++] = next;
+                break;
+            }
+        }
+        else
+        {
+            buffer[out++] = c;
+        }
+    }
+    buffer[out] = '\0';
+    return buffer;
+}
 %}
 
 %option noyywrap nodefault noinput nounput
@@ -65,6 +109,7 @@ static char *yy_strdup(const char *src)
 ")"                                { return RPAREN; }
 "{"                                { return LBRACE; }
 "}"                                { return RBRACE; }
+\"([^\"\n]|\\.)*\"             { yylval.string = yy_parse_string_literal(yytext); return STRING_LITERAL; }
 .                                  { fprintf(stderr, "invalid character '%s'\n", yytext); }
 
 %%

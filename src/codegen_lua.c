@@ -11,9 +11,15 @@ static void emit_statement(FILE *out, const AstStmt *stmt, const FunctionTable *
 static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_expression_expected(FILE *out, const AstExpr *expr, const FunctionTable *functions, TypeKind expected_type);
 static void emit_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
+static void emit_printf_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
+static void emit_puts_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
+static void emit_printf_args(FILE *out, const AstExpr *expr, const FunctionTable *functions);
+static void emit_string_literal_n(FILE *out, const char *value, size_t length);
+static void emit_string_literal(FILE *out, const char *value);
 static const FunctionSignature *lookup_signature(const FunctionTable *functions, const char *name);
 static const char *binary_op_token(AstBinaryOp op);
 static void emit_indent(FILE *out, int indent);
+static int emit_builtin_expr_statement(FILE *out, const AstExpr *expr, const FunctionTable *functions, int indent);
 
 void codegen_lua_emit(FILE *out, const AstProgram *program, const FunctionTable *functions)
 {
@@ -164,6 +170,10 @@ static void emit_statement(FILE *out, const AstStmt *stmt, const FunctionTable *
 	case STMT_EXPR:
 		if (stmt->data.expr)
 		{
+			if (emit_builtin_expr_statement(out, stmt->data.expr, functions, indent))
+			{
+				break;
+			}
 			emit_indent(out, indent);
 			emit_expression_raw(out, stmt->data.expr, functions);
 			fputc('\n', out);
@@ -228,6 +238,9 @@ static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTa
 	case EXPR_BOOL_LITERAL:
 		fputs(expr->data.bool_value ? "true" : "false", out);
 		break;
+	case EXPR_STRING_LITERAL:
+		emit_string_literal(out, expr->data.string_literal);
+		break;
 	case EXPR_IDENTIFIER:
 		fputs(expr->data.identifier, out);
 		break;
@@ -264,6 +277,16 @@ static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTa
 
 static void emit_call(FILE *out, const AstExpr *expr, const FunctionTable *functions)
 {
+	if (strcmp(expr->data.call.callee, "printf") == 0)
+	{
+		emit_printf_call(out, expr, functions);
+		return;
+	}
+	if (strcmp(expr->data.call.callee, "puts") == 0)
+	{
+		emit_puts_call(out, expr, functions);
+		return;
+	}
 	const FunctionSignature *signature = lookup_signature(functions, expr->data.call.callee);
 	fputs(expr->data.call.callee, out);
 	fputc('(', out);
@@ -281,6 +304,126 @@ static void emit_call(FILE *out, const AstExpr *expr, const FunctionTable *funct
 		emit_expression_expected(out, expr->data.call.args.items[i], functions, expected);
 	}
 	fputc(')', out);
+}
+
+static void emit_printf_call(FILE *out, const AstExpr *expr, const FunctionTable *functions)
+{
+	fputs("((print(string.format(", out);
+	emit_printf_args(out, expr, functions);
+	fputs("))) or 0)", out);
+}
+
+static void emit_puts_call(FILE *out, const AstExpr *expr, const FunctionTable *functions)
+{
+	fputs("((print(", out);
+	if (expr->data.call.args.count > 0)
+	{
+		emit_expression_raw(out, expr->data.call.args.items[0], functions);
+	}
+	fputs(")) or 0)", out);
+}
+
+static void emit_printf_args(FILE *out, const AstExpr *expr, const FunctionTable *functions)
+{
+	for (size_t i = 0; i < expr->data.call.args.count; ++i)
+	{
+		if (i > 0)
+		{
+			fputs(", ", out);
+		}
+		if (i == 0 && expr->data.call.args.items[i]->kind == EXPR_STRING_LITERAL)
+		{
+			const char *raw = expr->data.call.args.items[i]->data.string_literal;
+			size_t len = raw ? strlen(raw) : 0;
+			if (len > 0 && raw[len - 1] == '\n')
+			{
+				emit_string_literal_n(out, raw, len - 1);
+				continue;
+			}
+		}
+		emit_expression_raw(out, expr->data.call.args.items[i], functions);
+	}
+}
+
+static void emit_string_literal_n(FILE *out, const char *value, size_t length)
+{
+	if (!value)
+	{
+		fputs("\"\"", out);
+		return;
+	}
+	fputc('"', out);
+	for (size_t i = 0; i < length; ++i)
+	{
+		unsigned char c = (unsigned char)value[i];
+		switch (c)
+		{
+		case '\\':
+			fputs("\\\\", out);
+			break;
+		case '"':
+			fputs("\\\"", out);
+			break;
+		case '\n':
+			fputs("\\n", out);
+			break;
+		case '\r':
+			fputs("\\r", out);
+			break;
+		case '\t':
+			fputs("\\t", out);
+			break;
+		default:
+			if (c < 32 || c == 127)
+			{
+				fprintf(out, "\\x%02X", c);
+			}
+			else
+			{
+				fputc(c, out);
+			}
+			break;
+		}
+	}
+	fputc('"', out);
+}
+
+static void emit_string_literal(FILE *out, const char *value)
+{
+	if (!value)
+	{
+		fputs("\"\"", out);
+		return;
+	}
+	emit_string_literal_n(out, value, strlen(value));
+}
+
+static int emit_builtin_expr_statement(FILE *out, const AstExpr *expr, const FunctionTable *functions, int indent)
+{
+	if (!expr || expr->kind != EXPR_CALL)
+	{
+		return 0;
+	}
+	if (strcmp(expr->data.call.callee, "printf") == 0)
+	{
+		emit_indent(out, indent);
+		fputs("print(string.format(", out);
+		emit_printf_args(out, expr, functions);
+		fputs("))\n", out);
+		return 1;
+	}
+	if (strcmp(expr->data.call.callee, "puts") == 0)
+	{
+		emit_indent(out, indent);
+		fputs("print(", out);
+		if (expr->data.call.args.count > 0)
+		{
+			emit_expression_raw(out, expr->data.call.args.items[0], functions);
+		}
+		fputs(")\n", out);
+		return 1;
+	}
+	return 0;
 }
 
 static const FunctionSignature *lookup_signature(const FunctionTable *functions, const char *name)
