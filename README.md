@@ -14,23 +14,30 @@ O que não será suportado:
 
 ```
 .
-├── lexer/        # regras léxicas (lexer.l)
-├── parser/       # gramática e ações (parser.y)
-├── src/          # main.c, AST, tabela de símbolos, gerador Lua
+├── lexer/       # regras léxicas (lexer.l)
+├── parser/      # gramática e ações (parser.y)
+├── src/         # main.c, AST, tabela de símbolos, gerador Lua
 ├── tests/
-│   ├── smoke/    # testes rápidos de tradução (pares C/Lua)
-│   └── semantic/ # casos PASS/FAIL com golden files
+│   ├── pass/    # casos que devem passar
+│   └── fail/    # casos que precisam falhar
 └── Makefile
 ```
 
-Ambiente rápido (Linux):
-```nu
+## Ambiente de Desenvolvimento
+
+Ubuntu Linux:
+```bash
 sudo apt update
 sudo apt install -y flex bison build-essential git
 ```
 
+Arch Linux:
+```bash
+sudo pacman -Syu flex bison base-devel git
+```
+
 Build local (exemplo mínimo):
-```nu
+```bash
 make           # gera o binário ./c2lua a partir das fontes
 ./c2lua tests/smoke/expressions.c
 ```
@@ -40,19 +47,17 @@ make           # gera o binário ./c2lua a partir das fontes
 - [1ª sprint](./docs/sprints/1.md);
 - [2ª sprint](./docs/sprints/2.md);
 - [3ª sprint](./docs/sprints/3.md);
-- 4ª sprint;
+- [4ª sprint](./docs/sprints/4.md);
 
 # Testes
 
 A pasta `tests/` está organizada em:
-- `tests/smoke/`: pares simples C/Lua utilizados pelos testes rápidos do Makefile;
 - `tests/semantic/pass`: casos que devem gerar Lua válido e executar com sucesso;
 - `tests/semantic/fail`: casos que precisam falhar na análise semântica (arquivos `.err` com a mensagem esperada);
-- `tests/semantic/golden/fail`: mensagens de erro normalizadas utilizadas como golden files.
 
 Execute as suítes pelo Makefile:
 
-```nu
+```bash
 make test            # verifica os smoke tests (tradução direta C -> Lua)
 make semantic-test   # valida casos PASS/FAIL com comparação de golden files
 ```
