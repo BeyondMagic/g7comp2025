@@ -8,6 +8,10 @@ Resumo do MVP de linguagem suportada:
 - I/O: mapeamento simples printf/puts -> print; scanf opcional.
 - Saída Lua: usar local para variáveis, funções Lua equivalentes, operadores com mesma semântica; arrays opcionais como tabelas.
 
+O que não será suportado:
+- Ponteiros, structs, alocação dinâmica, manipulação de memória.
+- Recursos avançados: pré-processador, macros, diretivas de compilação.
+
 ```
 .
 ├── lexer/        # regras léxicas (lexer.l)
