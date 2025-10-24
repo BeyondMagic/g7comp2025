@@ -326,6 +326,6 @@ static void emit_indent(FILE *out, int indent)
 {
 	for (int i = 0; i < indent; ++i)
 	{
-		fputs("  ", out);
+		fputs("\t", out);
 	}
 }
