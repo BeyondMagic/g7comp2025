@@ -7,6 +7,9 @@ typedef struct
 {
 	char *name;
 	TypeKind type;
+	int is_array;
+	size_t array_size;
+	TypeKind element_type;
 } Symbol;
 
 typedef struct
@@ -41,7 +44,7 @@ void symbol_table_init(SymbolTable *table);
 void symbol_table_free(SymbolTable *table);
 void symbol_table_push_scope(SymbolTable *table);
 void symbol_table_pop_scope(SymbolTable *table);
-int symbol_table_add(SymbolTable *table, const char *name, TypeKind type);
+int symbol_table_add(SymbolTable *table, const char *name, TypeKind type, int is_array, size_t array_size, TypeKind element_type);
 const Symbol *symbol_table_lookup(const SymbolTable *table, const char *name);
 
 void function_table_init(FunctionTable *table);

@@ -17,6 +17,10 @@ static void emit_puts_call(FILE *out, const AstExpr *expr, const FunctionTable *
 static void emit_printf_args(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_string_literal_n(FILE *out, const char *value, size_t length);
 static void emit_string_literal(FILE *out, const char *value);
+static void emit_array_declaration(FILE *out, const AstStmt *stmt, const FunctionTable *functions, int indent);
+static void emit_array_literal_expr(FILE *out, const AstExprList *elements, const FunctionTable *functions);
+static void emit_array_index(FILE *out, const AstExpr *expr, const FunctionTable *functions);
+static void emit_array_default_value(FILE *out, TypeKind type);
 static const FunctionSignature *lookup_signature(const FunctionTable *functions, const char *name);
 static const char *binary_op_token(AstBinaryOp op);
 static void emit_indent(FILE *out, int indent);
@@ -153,19 +157,34 @@ static void emit_statement(FILE *out, const AstStmt *stmt, const FunctionTable *
 		emit_block(out, &stmt->data.block, functions, signature, indent, 1);
 		break;
 	case STMT_DECL:
-		emit_indent(out, indent);
-		fprintf(out, "local %s", stmt->data.decl.name);
-		if (stmt->data.decl.init)
+		if (stmt->data.decl.is_array)
 		{
-			fputs(" = ", out);
-			emit_expression_expected(out, stmt->data.decl.init, functions, stmt->data.decl.type);
+			emit_array_declaration(out, stmt, functions, indent);
 		}
-		fputc('\n', out);
+		else
+		{
+			emit_indent(out, indent);
+			fprintf(out, "local %s", stmt->data.decl.name);
+			if (stmt->data.decl.init)
+			{
+				fputs(" = ", out);
+				emit_expression_expected(out, stmt->data.decl.init, functions, stmt->data.decl.type);
+			}
+			fputc('\n', out);
+		}
 		break;
 	case STMT_ASSIGN:
 		emit_indent(out, indent);
 		fprintf(out, "%s = ", stmt->data.assign.name);
 		emit_expression_expected(out, stmt->data.assign.value, functions, stmt->data.assign.type);
+		fputc('\n', out);
+		break;
+	case STMT_ARRAY_ASSIGN:
+		emit_indent(out, indent);
+		fprintf(out, "%s[", stmt->data.array_assign.name);
+		emit_array_index(out, stmt->data.array_assign.index, functions);
+		fputs("] = ", out);
+		emit_expression_expected(out, stmt->data.array_assign.value, functions, stmt->data.array_assign.element_type);
 		fputc('\n', out);
 		break;
 	case STMT_EXPR:
@@ -256,6 +275,9 @@ static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTa
 	case EXPR_STRING_LITERAL:
 		emit_string_literal(out, expr->data.string_literal);
 		break;
+	case EXPR_ARRAY_LITERAL:
+		emit_array_literal_expr(out, &expr->data.array_literal.elements, functions);
+		break;
 	case EXPR_IDENTIFIER:
 		fputs(expr->data.identifier, out);
 		break;
@@ -307,6 +329,21 @@ static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTa
 		break;
 	case EXPR_CALL:
 		emit_call(out, expr, functions);
+		break;
+	case EXPR_SUBSCRIPT:
+		if (expr->data.subscript.array && expr->data.subscript.array->kind == EXPR_IDENTIFIER)
+		{
+			emit_expression_raw(out, expr->data.subscript.array, functions);
+		}
+		else
+		{
+			fputc('(', out);
+			emit_expression_raw(out, expr->data.subscript.array, functions);
+			fputc(')', out);
+		}
+		fputc('[', out);
+		emit_array_index(out, expr->data.subscript.index, functions);
+		fputc(']', out);
 		break;
 	}
 }
@@ -457,6 +494,112 @@ static void emit_string_literal(FILE *out, const char *value)
 		return;
 	}
 	emit_string_literal_n(out, value, strlen(value));
+}
+
+static void emit_array_declaration(FILE *out, const AstStmt *stmt, const FunctionTable *functions, int indent)
+{
+	if (!stmt)
+	{
+		return;
+	}
+	const AstExpr *init = stmt->data.decl.array_init;
+	emit_indent(out, indent);
+	fprintf(out, "local %s = {", stmt->data.decl.name);
+	size_t emitted = 0;
+	int first = 1;
+	if (init && init->kind == EXPR_ARRAY_LITERAL)
+	{
+		const AstExprList *elements = &init->data.array_literal.elements;
+		for (size_t i = 0; i < elements->count; ++i)
+		{
+			if (first)
+			{
+				fputc(' ', out);
+				first = 0;
+			}
+			else
+			{
+				fputs(", ", out);
+			}
+			emit_expression_expected(out, elements->items[i], functions, stmt->data.decl.type);
+			emitted++;
+		}
+	}
+	for (; emitted < stmt->data.decl.array_size; ++emitted)
+	{
+		if (first)
+		{
+			fputc(' ', out);
+			first = 0;
+		}
+		else
+		{
+			fputs(", ", out);
+		}
+		emit_array_default_value(out, stmt->data.decl.type);
+	}
+	fputs(" }\n", out);
+}
+
+static void emit_array_literal_expr(FILE *out, const AstExprList *elements, const FunctionTable *functions)
+{
+	fputc('{', out);
+	int first = 1;
+	if (elements)
+	{
+		for (size_t i = 0; i < elements->count; ++i)
+		{
+			if (first)
+			{
+				fputc(' ', out);
+				first = 0;
+			}
+			else
+			{
+				fputs(", ", out);
+			}
+			emit_expression_raw(out, elements->items[i], functions);
+		}
+	}
+	if (first)
+	{
+		fputc(' ', out);
+	}
+	fputs(" }", out);
+}
+
+static void emit_array_index(FILE *out, const AstExpr *expr, const FunctionTable *functions)
+{
+	if (expr && expr->kind == EXPR_INT_LITERAL)
+	{
+		fprintf(out, "%lld", expr->data.int_value + 1);
+		return;
+	}
+	fputc('(', out);
+	emit_expression_raw(out, expr, functions);
+	fputs(" + 1)", out);
+}
+
+static void emit_array_default_value(FILE *out, TypeKind type)
+{
+	switch (type)
+	{
+	case TYPE_INT:
+		fputs("0", out);
+		break;
+	case TYPE_FLOAT:
+		fputs("0.0", out);
+		break;
+	case TYPE_BOOL:
+		fputs("false", out);
+		break;
+	case TYPE_STRING:
+		emit_string_literal(out, "");
+		break;
+	default:
+		fputs("nil", out);
+		break;
+	}
 }
 
 static int emit_builtin_expr_statement(FILE *out, const AstExpr *expr, const FunctionTable *functions, int indent)

@@ -56,6 +56,7 @@ static void parser_error_cleanup(AstProgram **out_program);
 %token COMMA SEMI
 %token LPAREN RPAREN
 %token LBRACE RBRACE
+%token LBRACKET RBRACKET
 
 /* ---------- Precedência ---------- */
 %left OR
@@ -73,8 +74,8 @@ static void parser_error_cleanup(AstProgram **out_program);
 %type <block> block
 %type <stmt> statement compound_statement declaration_statement assignment_statement return_statement expression_statement
 %type <stmt_list> optional_statement_list statement_list
-%type <expr> expression logical_or_expression logical_and_expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression
-%type <expr_list> argument_expression_list argument_expression_list_opt
+%type <expr> expression logical_or_expression logical_and_expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression array_initializer
+%type <expr_list> argument_expression_list argument_expression_list_opt initializer_list initializer_list_opt
 
 %start program
 
@@ -203,12 +204,24 @@ declaration_statement
       {
           $$ = ast_stmt_make_decl($1, $2, NULL);
       }
+    | type_specifier IDENT LBRACKET INT_LITERAL RBRACKET SEMI
+      {
+          $$ = ast_stmt_make_array_decl($1, $2, (size_t)$4, NULL);
+      }
+    | type_specifier IDENT LBRACKET INT_LITERAL RBRACKET ASSIGN array_initializer SEMI
+      {
+          $$ = ast_stmt_make_array_decl($1, $2, (size_t)$4, $7);
+      }
     ;
 
 assignment_statement
     : IDENT ASSIGN expression SEMI
       {
           $$ = ast_stmt_make_assign($1, $3);
+      }
+    | IDENT LBRACKET expression RBRACKET ASSIGN expression SEMI
+      {
+          $$ = ast_stmt_make_array_assign($1, $3, $6);
       }
     ;
 
@@ -359,6 +372,10 @@ postfix_expression
       {
           $$ = ast_expr_make_call($1, &$3);
       }
+    | postfix_expression LBRACKET expression RBRACKET
+      {
+          $$ = ast_expr_make_subscript($1, $3);
+      }
     ;
 
 argument_expression_list_opt
@@ -414,6 +431,38 @@ primary_expression
     | LPAREN expression RPAREN
       {
           $$ = $2;
+      }
+    ;
+
+array_initializer
+    : LBRACE initializer_list_opt RBRACE
+      {
+          $$ = ast_expr_make_array_literal(&$2);
+      }
+    ;
+
+initializer_list_opt
+    : initializer_list
+      {
+          $$ = $1;
+      }
+    | /* empty */
+      {
+          $$ = ast_expr_list_make();
+      }
+    ;
+
+initializer_list
+    : expression
+      {
+          AstExprList list = ast_expr_list_make();
+          ast_expr_list_push(&list, $1);
+          $$ = list;
+      }
+    | initializer_list COMMA expression
+      {
+          ast_expr_list_push(&$1, $3);
+          $$ = $1;
       }
     ;
 

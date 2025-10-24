@@ -167,6 +167,13 @@ static void ast_expr_destroy(AstExpr *expr)
 		}
 		free(expr->data.call.args.items);
 		break;
+	case EXPR_ARRAY_LITERAL:
+		ast_expr_list_destroy(&expr->data.array_literal.elements);
+		break;
+	case EXPR_SUBSCRIPT:
+		ast_expr_destroy(expr->data.subscript.array);
+		ast_expr_destroy(expr->data.subscript.index);
+		break;
 	case EXPR_INT_LITERAL:
 	case EXPR_FLOAT_LITERAL:
 	case EXPR_BOOL_LITERAL:
@@ -227,10 +234,19 @@ void ast_stmt_list_destroy(AstStmtList *list)
 			{
 				ast_expr_destroy(stmt->data.decl.init);
 			}
+			if (stmt->data.decl.array_init)
+			{
+				ast_expr_destroy(stmt->data.decl.array_init);
+			}
 			break;
 		case STMT_ASSIGN:
 			free(stmt->data.assign.name);
 			ast_expr_destroy(stmt->data.assign.value);
+			break;
+		case STMT_ARRAY_ASSIGN:
+			free(stmt->data.array_assign.name);
+			ast_expr_destroy(stmt->data.array_assign.index);
+			ast_expr_destroy(stmt->data.array_assign.value);
 			break;
 		case STMT_EXPR:
 		case STMT_RETURN:
@@ -276,6 +292,9 @@ AstStmt *ast_stmt_make_decl(TypeKind type, char *name, AstExpr *init)
 	stmt->data.decl.type = type;
 	stmt->data.decl.name = name;
 	stmt->data.decl.init = init;
+	stmt->data.decl.is_array = 0;
+	stmt->data.decl.array_size = 0;
+	stmt->data.decl.array_init = NULL;
 	return stmt;
 }
 
@@ -286,6 +305,31 @@ AstStmt *ast_stmt_make_assign(char *name, AstExpr *value)
 	stmt->data.assign.name = name;
 	stmt->data.assign.value = value;
 	stmt->data.assign.type = TYPE_UNKNOWN;
+	return stmt;
+}
+
+AstStmt *ast_stmt_make_array_decl(TypeKind type, char *name, size_t size, AstExpr *init)
+{
+	AstStmt *stmt = xcalloc(1, sizeof(AstStmt));
+	stmt->kind = STMT_DECL;
+	stmt->data.decl.type = type;
+	stmt->data.decl.name = name;
+	stmt->data.decl.init = NULL;
+	stmt->data.decl.is_array = 1;
+	stmt->data.decl.array_size = size;
+	stmt->data.decl.array_init = init;
+	return stmt;
+}
+
+AstStmt *ast_stmt_make_array_assign(char *name, AstExpr *index, AstExpr *value)
+{
+	AstStmt *stmt = xcalloc(1, sizeof(AstStmt));
+	stmt->kind = STMT_ARRAY_ASSIGN;
+	stmt->data.array_assign.name = name;
+	stmt->data.array_assign.index = index;
+	stmt->data.array_assign.value = value;
+	stmt->data.array_assign.element_type = TYPE_UNKNOWN;
+	stmt->data.array_assign.array_size = 0;
 	return stmt;
 }
 
@@ -384,6 +428,28 @@ AstExpr *ast_expr_make_call(char *callee, AstExprList *args)
 	return expr;
 }
 
+AstExpr *ast_expr_make_array_literal(AstExprList *elements)
+{
+	AstExpr *expr = xcalloc(1, sizeof(AstExpr));
+	expr->kind = EXPR_ARRAY_LITERAL;
+	expr->type = TYPE_ARRAY;
+	if (elements)
+	{
+		expr->data.array_literal.elements = *elements;
+	}
+	return expr;
+}
+
+AstExpr *ast_expr_make_subscript(AstExpr *array, AstExpr *index)
+{
+	AstExpr *expr = xcalloc(1, sizeof(AstExpr));
+	expr->kind = EXPR_SUBSCRIPT;
+	expr->type = TYPE_UNKNOWN;
+	expr->data.subscript.array = array;
+	expr->data.subscript.index = index;
+	return expr;
+}
+
 TypeKind ast_type_from_keyword(const char *kw)
 {
 	if (!kw)
@@ -425,6 +491,8 @@ const char *ast_type_name(TypeKind type)
 		return "bool";
 	case TYPE_STRING:
 		return "string";
+	case TYPE_ARRAY:
+		return "array";
 	case TYPE_VOID:
 		return "void";
 	case TYPE_UNKNOWN:
