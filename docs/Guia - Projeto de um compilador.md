@@ -182,3 +182,13 @@ Este guia apresenta etapas para a implementação prática de um compilador.
 6. Não se esqueçam de manter **folga no cronograma** para lidar com imprevistos (bugs complexos, prazos de outras disciplinas, feriados e eventos).  
 
 Esse planejamento é apenas um **exemplo** — cada equipe pode ajustá-lo conforme seu ritmo, desde que respeitem os marcos (P1, P2, entregas finais e entrevistas). O importante é manter a transparência e o comprometimento com as entregas, sempre priorizando a qualidade e a compreensão de cada parte do compilador.
+## Como rodar a suíte semântica
+
+A suíte abrange testes de **pass** (C → Lua → execução) e **fail** (mensagens de erro semântico).
+Pré-requisitos: `lua` (5.4), `luac`, e o binário do compilador (`c2lua`).
+
+### Passo a passo
+
+1. Compile o `c2lua` (ou garanta que `./c2lua` existe):
+   ```bash
+   make build
