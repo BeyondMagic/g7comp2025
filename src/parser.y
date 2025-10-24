@@ -51,14 +51,18 @@ static void parser_error_cleanup(AstProgram **out_program);
 %token TRUE FALSE
 %token PLUS MINUS TIMES DIVIDE MOD
 %token EQ NEQ LT LE GT GE
+%token AND OR NOT
 %token ASSIGN
 %token COMMA SEMI
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 
 /* ---------- Precedência ---------- */
+%left OR
+%left AND
 %left PLUS MINUS
 %left TIMES DIVIDE MOD
+%right NOT
 %right UMINUS
 
 %type <program> program function_sequence
@@ -69,7 +73,7 @@ static void parser_error_cleanup(AstProgram **out_program);
 %type <block> block
 %type <stmt> statement compound_statement declaration_statement assignment_statement return_statement expression_statement
 %type <stmt_list> optional_statement_list statement_list
-%type <expr> expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression
+%type <expr> expression logical_or_expression logical_and_expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression
 %type <expr_list> argument_expression_list argument_expression_list_opt
 
 %start program
@@ -227,9 +231,31 @@ expression_statement
     ;
 
 expression
+    : logical_or_expression
+      {
+          $$ = $1;
+      }
+    ;
+
+logical_or_expression
+    : logical_and_expression
+      {
+          $$ = $1;
+      }
+    | logical_or_expression OR logical_and_expression
+      {
+          $$ = ast_expr_make_binary(BIN_OP_OR, $1, $3);
+      }
+    ;
+
+logical_and_expression
     : equality_expression
       {
           $$ = $1;
+      }
+    | logical_and_expression AND equality_expression
+      {
+          $$ = ast_expr_make_binary(BIN_OP_AND, $1, $3);
       }
     ;
 
@@ -318,6 +344,10 @@ unary_expression
       {
           $$ = ast_expr_make_unary(UN_OP_POS, $2);
       }
+    | NOT unary_expression
+      {
+          $$ = ast_expr_make_unary(UN_OP_NOT, $2);
+      }
     ;
 
 postfix_expression
@@ -379,7 +409,7 @@ primary_expression
       }
     | STRING_LITERAL
       {
-          $$ = ast_expr_make_string($1);
+          $$ =  ast_expr_make_string($1);
       }
     | LPAREN expression RPAREN
       {

@@ -402,7 +402,7 @@ TypeKind ast_type_from_keyword(const char *kw)
 	{
 		return TYPE_BOOL;
 	}
-if (strcmp(kw, "string") == 0)
+	if (strcmp(kw, "string") == 0)
 	{
 		return TYPE_STRING;
 	}

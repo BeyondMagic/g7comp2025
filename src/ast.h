@@ -25,7 +25,9 @@ typedef enum
 	BIN_OP_LT,
 	BIN_OP_LE,
 	BIN_OP_GT,
-	BIN_OP_GE
+	BIN_OP_GE,
+	BIN_OP_AND,
+	BIN_OP_OR
 } AstBinaryOp;
 
 typedef enum

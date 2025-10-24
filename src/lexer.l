@@ -93,6 +93,8 @@ static char *yy_parse_string_literal(const char *src)
 [a-zA-Z_][a-zA-Z0-9_]*             { yylval.id = yy_strdup(yytext); return IDENT; }
 "=="                               { return EQ; }
 "!="                               { return NEQ; }
+"&&"                               { return AND; }
+"||"                               { return OR; }
 "<="                               { return LE; }
 ">="                               { return GE; }
 "<"                                { return LT; }
@@ -102,6 +104,7 @@ static char *yy_parse_string_literal(const char *src)
 "*"                                { return TIMES; }
 "/"                                { return DIVIDE; }
 "%"                                { return MOD; }
+"!"                                { return NOT; }
 "="                                { return ASSIGN; }
 ","                                { return COMMA; }
 ";"                                { return SEMI; }

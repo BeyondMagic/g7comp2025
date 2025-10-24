@@ -11,6 +11,7 @@ static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *s
 static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
 static int ensure_assignable(TypeKind target, TypeKind value);
 static int is_numeric(TypeKind type);
+static int is_boolean_like(TypeKind type);
 static TypeKind arithmetic_result(TypeKind left, TypeKind right);
 static TypeKind analyze_builtin_call(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
 
@@ -304,6 +305,10 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 		}
 		else if (expr->data.unary.op == UN_OP_NOT)
 		{
+			if (!is_boolean_like(operand_type))
+			{
+				semantic_error("logical not expects boolean or numeric operand");
+			}
 			expr->type = TYPE_BOOL;
 		}
 		else
@@ -353,6 +358,14 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 			if (!is_numeric(left_type) || !is_numeric(right_type))
 			{
 				semantic_error("relational operator expects numeric operands");
+			}
+			expr->type = TYPE_BOOL;
+			return expr->type;
+		case BIN_OP_AND:
+		case BIN_OP_OR:
+			if (!is_boolean_like(left_type) || !is_boolean_like(right_type))
+			{
+				semantic_error("logical operator expects boolean or numeric operands");
 			}
 			expr->type = TYPE_BOOL;
 			return expr->type;
@@ -421,6 +434,14 @@ static int ensure_assignable(TypeKind target, TypeKind value)
 	{
 		return target == TYPE_STRING && value == TYPE_STRING;
 	}
+	if (target == TYPE_BOOL && (value == TYPE_INT || value == TYPE_FLOAT || value == TYPE_BOOL))
+	{
+		return 1;
+	}
+	if ((target == TYPE_INT || target == TYPE_FLOAT) && value == TYPE_BOOL)
+	{
+		return 1;
+	}
 	if (is_numeric(target) && is_numeric(value))
 	{
 		return 1;
@@ -435,6 +456,11 @@ static int ensure_assignable(TypeKind target, TypeKind value)
 static int is_numeric(TypeKind type)
 {
 	return type == TYPE_INT || type == TYPE_FLOAT;
+}
+
+static int is_boolean_like(TypeKind type)
+{
+	return type == TYPE_BOOL || type == TYPE_INT || type == TYPE_FLOAT;
 }
 
 static TypeKind arithmetic_result(TypeKind left, TypeKind right)

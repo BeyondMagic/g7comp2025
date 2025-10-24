@@ -10,6 +10,7 @@ static void emit_block(FILE *out, const AstBlock *block, const FunctionTable *fu
 static void emit_statement(FILE *out, const AstStmt *stmt, const FunctionTable *functions, const FunctionSignature *signature, int indent);
 static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_expression_expected(FILE *out, const AstExpr *expr, const FunctionTable *functions, TypeKind expected_type);
+static void emit_expression_as_bool(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_printf_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
 static void emit_puts_call(FILE *out, const AstExpr *expr, const FunctionTable *functions);
@@ -208,11 +209,25 @@ static void emit_expression_expected(FILE *out, const AstExpr *expr, const Funct
 		return;
 	}
 
+	if (expected_type == TYPE_BOOL)
+	{
+		emit_expression_as_bool(out, expr, functions);
+		return;
+	}
+
 	if (expected_type == TYPE_INT && actual == TYPE_FLOAT)
 	{
 		fputs("math.floor(", out);
 		emit_expression_raw(out, expr, functions);
 		fputc(')', out);
+		return;
+	}
+
+	if ((expected_type == TYPE_INT || expected_type == TYPE_FLOAT) && actual == TYPE_BOOL)
+	{
+		fputc('(', out);
+		emit_expression_as_bool(out, expr, functions);
+		fputs(" and 1 or 0)", out);
 		return;
 	}
 
@@ -245,32 +260,78 @@ static void emit_expression_raw(FILE *out, const AstExpr *expr, const FunctionTa
 		fputs(expr->data.identifier, out);
 		break;
 	case EXPR_BINARY:
-		fputc('(', out);
-		emit_expression_raw(out, expr->data.binary.left, functions);
-		fprintf(out, " %s ", binary_op_token(expr->data.binary.op));
-		emit_expression_raw(out, expr->data.binary.right, functions);
-		fputc(')', out);
+		switch (expr->data.binary.op)
+		{
+		case BIN_OP_AND:
+			fputc('(', out);
+			emit_expression_as_bool(out, expr->data.binary.left, functions);
+			fputs(" and ", out);
+			emit_expression_as_bool(out, expr->data.binary.right, functions);
+			fputc(')', out);
+			break;
+		case BIN_OP_OR:
+			fputc('(', out);
+			emit_expression_as_bool(out, expr->data.binary.left, functions);
+			fputs(" or ", out);
+			emit_expression_as_bool(out, expr->data.binary.right, functions);
+			fputc(')', out);
+			break;
+		default:
+			fputc('(', out);
+			emit_expression_raw(out, expr->data.binary.left, functions);
+			fprintf(out, " %s ", binary_op_token(expr->data.binary.op));
+			emit_expression_raw(out, expr->data.binary.right, functions);
+			fputc(')', out);
+			break;
+		}
 		break;
 	case EXPR_UNARY:
-		if (expr->data.unary.op == UN_OP_NEG)
+		switch (expr->data.unary.op)
 		{
+		case UN_OP_NEG:
 			fputc('-', out);
 			fputc('(', out);
 			emit_expression_raw(out, expr->data.unary.operand, functions);
 			fputc(')', out);
-		}
-		else if (expr->data.unary.op == UN_OP_NOT)
-		{
-			fputs("not ", out);
+			break;
+		case UN_OP_NOT:
+			fputs("not (", out);
+			emit_expression_as_bool(out, expr->data.unary.operand, functions);
+			fputc(')', out);
+			break;
+		case UN_OP_POS:
+		default:
 			emit_expression_raw(out, expr->data.unary.operand, functions);
-		}
-		else
-		{
-			emit_expression_raw(out, expr->data.unary.operand, functions);
+			break;
 		}
 		break;
 	case EXPR_CALL:
 		emit_call(out, expr, functions);
+		break;
+	}
+}
+
+static void emit_expression_as_bool(FILE *out, const AstExpr *expr, const FunctionTable *functions)
+{
+	if (!expr)
+	{
+		fputs("false", out);
+		return;
+	}
+
+	switch (expr->type)
+	{
+	case TYPE_BOOL:
+		emit_expression_raw(out, expr, functions);
+		break;
+	case TYPE_INT:
+	case TYPE_FLOAT:
+		fputc('(', out);
+		emit_expression_raw(out, expr, functions);
+		fputs(" ~= 0)", out);
+		break;
+	default:
+		emit_expression_raw(out, expr, functions);
 		break;
 	}
 }
@@ -461,6 +522,10 @@ static const char *binary_op_token(AstBinaryOp op)
 		return ">";
 	case BIN_OP_GE:
 		return ">=";
+	case BIN_OP_AND:
+		return "and";
+	case BIN_OP_OR:
+		return "or";
 	}
 	return "?";
 }
