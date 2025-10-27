@@ -306,6 +306,61 @@ static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *s
 		stmt->data.array_assign.array_size = symbol->array_size;
 		break;
 	}
+	case STMT_WHILE:
+	{
+		TypeKind cond_type = analyze_expression(info, symbols, stmt->data.while_stmt.condition);
+		stmt->data.while_stmt.condition->type = cond_type;
+		if (!is_boolean_like(cond_type))
+		{
+			semantic_error("while condition in function '%s' must be boolean-compatible but found %s",
+					   fn->name,
+					   ast_type_name(cond_type));
+			return 0;
+		}
+		int loop_has_return = 0;
+		if (!analyze_statement(info, fn, symbols, stmt->data.while_stmt.body, &loop_has_return))
+		{
+			return 0;
+		}
+		break;
+	}
+	case STMT_FOR:
+	{
+		symbol_table_push_scope(symbols);
+		int ok = 1;
+		if (stmt->data.for_stmt.init && ok)
+		{
+			ok = analyze_statement(info, fn, symbols, stmt->data.for_stmt.init, has_return);
+		}
+		if (stmt->data.for_stmt.condition && ok)
+		{
+			TypeKind cond_type = analyze_expression(info, symbols, stmt->data.for_stmt.condition);
+			stmt->data.for_stmt.condition->type = cond_type;
+			if (!is_boolean_like(cond_type))
+			{
+				semantic_error("for condition in function '%s' must be boolean-compatible but found %s",
+					   fn->name,
+					   ast_type_name(cond_type));
+				ok = 0;
+			}
+		}
+		if (stmt->data.for_stmt.body && ok)
+		{
+			int loop_has_return = 0;
+			ok = analyze_statement(info, fn, symbols, stmt->data.for_stmt.body, &loop_has_return);
+		}
+		if (stmt->data.for_stmt.post && ok)
+		{
+			int post_has_return = 0;
+			ok = analyze_statement(info, fn, symbols, stmt->data.for_stmt.post, &post_has_return);
+		}
+		symbol_table_pop_scope(symbols);
+		if (!ok)
+		{
+			return 0;
+		}
+		break;
+	}
 	case STMT_EXPR:
 		if (stmt->data.expr)
 		{

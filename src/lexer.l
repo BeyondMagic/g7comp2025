@@ -74,10 +74,12 @@ static char *yy_parse_string_literal(const char *src)
 "bool"                             { return KW_BOOL; }
 "void"                             { return KW_VOID; }
 "return"                           { return RETURN; }
-        \[                                { return LBRACKET; }
-        \]                                { return RBRACKET; }
+"while"                            { return WHILE; }
+"for"                              { return FOR; }
 "true"                             { return TRUE; }
 "false"                            { return FALSE; }
+"\\["                               { return LBRACKET; }
+"\\]"                               { return RBRACKET; }
 "//"[^\n]*                         { /* skip single line comments */ }
 "/*"                { BEGIN(COMMENT); }
 <COMMENT>{

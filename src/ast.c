@@ -36,6 +36,9 @@ static void ensure_capacity(void **buffer, size_t elem_size, size_t *capacity, s
 	*capacity = new_capacity;
 }
 
+static void ast_expr_destroy(AstExpr *expr);
+static void ast_stmt_destroy(AstStmt *stmt);
+
 AstProgram *ast_program_create(void)
 {
 	AstProgram *program = xcalloc(1, sizeof(AstProgram));
@@ -218,50 +221,64 @@ void ast_stmt_list_destroy(AstStmtList *list)
 	}
 	for (size_t i = 0; i < list->count; ++i)
 	{
-		AstStmt *stmt = list->items[i];
-		if (!stmt)
-		{
-			continue;
-		}
-		switch (stmt->kind)
-		{
-		case STMT_BLOCK:
-			ast_stmt_list_destroy(&stmt->data.block.statements);
-			break;
-		case STMT_DECL:
-			free(stmt->data.decl.name);
-			if (stmt->data.decl.init)
-			{
-				ast_expr_destroy(stmt->data.decl.init);
-			}
-			if (stmt->data.decl.array_init)
-			{
-				ast_expr_destroy(stmt->data.decl.array_init);
-			}
-			break;
-		case STMT_ASSIGN:
-			free(stmt->data.assign.name);
-			ast_expr_destroy(stmt->data.assign.value);
-			break;
-		case STMT_ARRAY_ASSIGN:
-			free(stmt->data.array_assign.name);
-			ast_expr_destroy(stmt->data.array_assign.index);
-			ast_expr_destroy(stmt->data.array_assign.value);
-			break;
-		case STMT_EXPR:
-		case STMT_RETURN:
-			if (stmt->data.expr)
-			{
-				ast_expr_destroy(stmt->data.expr);
-			}
-			break;
-		}
-		free(stmt);
+		ast_stmt_destroy(list->items[i]);
 	}
 	free(list->items);
 	list->items = NULL;
 	list->count = 0;
 	list->capacity = 0;
+}
+
+static void ast_stmt_destroy(AstStmt *stmt)
+{
+	if (!stmt)
+	{
+		return;
+	}
+	switch (stmt->kind)
+	{
+	case STMT_BLOCK:
+		ast_stmt_list_destroy(&stmt->data.block.statements);
+		break;
+	case STMT_DECL:
+		free(stmt->data.decl.name);
+		if (stmt->data.decl.init)
+		{
+			ast_expr_destroy(stmt->data.decl.init);
+		}
+		if (stmt->data.decl.array_init)
+		{
+			ast_expr_destroy(stmt->data.decl.array_init);
+		}
+		break;
+	case STMT_ASSIGN:
+		free(stmt->data.assign.name);
+		ast_expr_destroy(stmt->data.assign.value);
+		break;
+	case STMT_ARRAY_ASSIGN:
+		free(stmt->data.array_assign.name);
+		ast_expr_destroy(stmt->data.array_assign.index);
+		ast_expr_destroy(stmt->data.array_assign.value);
+		break;
+	case STMT_WHILE:
+		ast_expr_destroy(stmt->data.while_stmt.condition);
+		ast_stmt_destroy(stmt->data.while_stmt.body);
+		break;
+	case STMT_FOR:
+		ast_stmt_destroy(stmt->data.for_stmt.init);
+		ast_expr_destroy(stmt->data.for_stmt.condition);
+		ast_stmt_destroy(stmt->data.for_stmt.post);
+		ast_stmt_destroy(stmt->data.for_stmt.body);
+		break;
+	case STMT_EXPR:
+	case STMT_RETURN:
+		if (stmt->data.expr)
+		{
+			ast_expr_destroy(stmt->data.expr);
+		}
+		break;
+	}
+	free(stmt);
 }
 
 AstBlock ast_block_from_list(AstStmtList *list)
@@ -270,6 +287,9 @@ AstBlock ast_block_from_list(AstStmtList *list)
 	if (list)
 	{
 		block.statements = *list;
+		list->items = NULL;
+		list->count = 0;
+		list->capacity = 0;
 	}
 	return block;
 }
@@ -281,6 +301,10 @@ AstStmt *ast_stmt_make_block(AstBlock *block)
 	if (block)
 	{
 		stmt->data.block = *block;
+	}
+	else
+	{
+		stmt->data.block.statements = ast_stmt_list_make();
 	}
 	return stmt;
 }
@@ -330,6 +354,26 @@ AstStmt *ast_stmt_make_array_assign(char *name, AstExpr *index, AstExpr *value)
 	stmt->data.array_assign.value = value;
 	stmt->data.array_assign.element_type = TYPE_UNKNOWN;
 	stmt->data.array_assign.array_size = 0;
+	return stmt;
+}
+
+AstStmt *ast_stmt_make_while(AstExpr *condition, AstStmt *body)
+{
+	AstStmt *stmt = xcalloc(1, sizeof(AstStmt));
+	stmt->kind = STMT_WHILE;
+	stmt->data.while_stmt.condition = condition;
+	stmt->data.while_stmt.body = body;
+	return stmt;
+}
+
+AstStmt *ast_stmt_make_for(AstStmt *init, AstExpr *condition, AstStmt *post, AstStmt *body)
+{
+	AstStmt *stmt = xcalloc(1, sizeof(AstStmt));
+	stmt->kind = STMT_FOR;
+	stmt->data.for_stmt.init = init;
+	stmt->data.for_stmt.condition = condition;
+	stmt->data.for_stmt.post = post;
+	stmt->data.for_stmt.body = body;
 	return stmt;
 }
 
@@ -424,6 +468,9 @@ AstExpr *ast_expr_make_call(char *callee, AstExprList *args)
 	if (args)
 	{
 		expr->data.call.args = *args;
+		args->items = NULL;
+		args->count = 0;
+		args->capacity = 0;
 	}
 	return expr;
 }
@@ -436,6 +483,9 @@ AstExpr *ast_expr_make_array_literal(AstExprList *elements)
 	if (elements)
 	{
 		expr->data.array_literal.elements = *elements;
+		elements->items = NULL;
+		elements->count = 0;
+		elements->capacity = 0;
 	}
 	return expr;
 }

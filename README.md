@@ -4,7 +4,7 @@ Objetivo: construir um compilador que lê um subconjunto de C e transpila para L
 
 Resumo do MVP de linguagem suportada:
 - Tipos: int, float, bool (true/false), char (como número), string opcional.
-- Estruturas: declaração de variáveis, atribuição, expressões aritméticas/lógicas, if/else, while, função (definição/chamada) e return.
+- Estruturas: declaração de variáveis, atribuição, expressões aritméticas/lógicas, if/else, while, for (apenas uma declaração), função (definição/chamada) e return.
 - I/O: mapeamento simples printf/puts -> print; scanf opcional.
 - Saída Lua: usar local para variáveis, funções Lua equivalentes, operadores com mesma semântica; arrays opcionais como tabelas.
 

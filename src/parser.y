@@ -48,6 +48,7 @@ static void parser_error_cleanup(AstProgram **out_program);
 %token <string> STRING_LITERAL
 %token KW_INT KW_FLOAT KW_BOOL KW_VOID
 %token RETURN
+%token WHILE FOR
 %token TRUE FALSE
 %token PLUS MINUS TIMES DIVIDE MOD
 %token EQ NEQ LT LE GT GE
@@ -72,9 +73,9 @@ static void parser_error_cleanup(AstProgram **out_program);
 %type <param> parameter
 %type <param_list> parameter_list_nonempty parameter_list_opt
 %type <block> block
-%type <stmt> statement compound_statement declaration_statement assignment_statement return_statement expression_statement
+%type <stmt> statement compound_statement declaration_statement assignment_statement return_statement expression_statement while_statement for_statement for_init_statement_opt for_post_statement_opt
 %type <stmt_list> optional_statement_list statement_list
-%type <expr> expression logical_or_expression logical_and_expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression array_initializer
+%type <expr> expression logical_or_expression logical_and_expression equality_expression relational_expression additive_expression multiplicative_expression unary_expression postfix_expression primary_expression array_initializer expression_opt
 %type <expr_list> argument_expression_list argument_expression_list_opt initializer_list initializer_list_opt
 
 %start program
@@ -186,6 +187,8 @@ statement
     | assignment_statement
     | return_statement
     | expression_statement
+  | while_statement
+  | for_statement
     ;
 
 compound_statement
@@ -240,6 +243,69 @@ expression_statement
     : expression SEMI
       {
           $$ = ast_stmt_make_expr($1);
+      }
+    ;
+
+while_statement
+    : WHILE LPAREN expression RPAREN statement
+      {
+          $$ = ast_stmt_make_while($3, $5);
+      }
+    ;
+
+for_statement
+    : FOR LPAREN for_init_statement_opt SEMI expression_opt SEMI for_post_statement_opt RPAREN statement
+      {
+          $$ = ast_stmt_make_for($3, $5, $7, $9);
+      }
+    ;
+
+for_init_statement_opt
+    : type_specifier IDENT ASSIGN expression
+      {
+          $$ = ast_stmt_make_decl($1, $2, $4);
+      }
+    | type_specifier IDENT
+      {
+          $$ = ast_stmt_make_decl($1, $2, NULL);
+      }
+    | IDENT ASSIGN expression
+      {
+          $$ = ast_stmt_make_assign($1, $3);
+      }
+    | IDENT LBRACKET expression RBRACKET ASSIGN expression
+      {
+          $$ = ast_stmt_make_array_assign($1, $3, $6);
+      }
+    | /* empty */
+      {
+          $$ = NULL;
+      }
+    ;
+
+for_post_statement_opt
+    : IDENT ASSIGN expression
+      {
+          $$ = ast_stmt_make_assign($1, $3);
+      }
+    | IDENT LBRACKET expression RBRACKET ASSIGN expression
+      {
+          $$ = ast_stmt_make_array_assign($1, $3, $6);
+      }
+    | /* empty */
+      {
+          $$ = NULL;
+      }
+    ;
+
+expression_opt
+    : expression
+      {
+          $$ = $1;
+      }
+    | /* empty */
+      {
+          $$ = NULL;
       }
     ;
 

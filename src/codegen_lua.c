@@ -187,6 +187,43 @@ static void emit_statement(FILE *out, const AstStmt *stmt, const FunctionTable *
 		emit_expression_expected(out, stmt->data.array_assign.value, functions, stmt->data.array_assign.element_type);
 		fputc('\n', out);
 		break;
+	case STMT_WHILE:
+		emit_indent(out, indent);
+		fputs("while ", out);
+		emit_expression_as_bool(out, stmt->data.while_stmt.condition, functions);
+		fputs(" do\n", out);
+		emit_statement(out, stmt->data.while_stmt.body, functions, signature, indent + 1);
+		emit_indent(out, indent);
+		fputs("end\n", out);
+		break;
+	case STMT_FOR:
+		emit_indent(out, indent);
+		fputs("do\n", out);
+		if (stmt->data.for_stmt.init)
+		{
+			emit_statement(out, stmt->data.for_stmt.init, functions, signature, indent + 1);
+		}
+		emit_indent(out, indent + 1);
+		fputs("while ", out);
+		if (stmt->data.for_stmt.condition)
+		{
+			emit_expression_as_bool(out, stmt->data.for_stmt.condition, functions);
+		}
+		else
+		{
+			fputs("true", out);
+		}
+		fputs(" do\n", out);
+		emit_statement(out, stmt->data.for_stmt.body, functions, signature, indent + 2);
+		if (stmt->data.for_stmt.post)
+		{
+			emit_statement(out, stmt->data.for_stmt.post, functions, signature, indent + 2);
+		}
+		emit_indent(out, indent + 1);
+		fputs("end\n", out);
+		emit_indent(out, indent);
+		fputs("end\n", out);
+		break;
 	case STMT_EXPR:
 		if (stmt->data.expr)
 		{

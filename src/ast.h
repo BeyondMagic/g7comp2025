@@ -142,6 +142,8 @@ typedef struct AstStmt
 		STMT_DECL,
 		STMT_ASSIGN,
 		STMT_ARRAY_ASSIGN,
+		STMT_WHILE,
+		STMT_FOR,
 		STMT_EXPR,
 		STMT_RETURN
 	} kind;
@@ -171,6 +173,18 @@ typedef struct AstStmt
 			TypeKind element_type;
 			size_t array_size;
 		} array_assign;
+		struct
+		{
+			AstExpr *condition;
+			struct AstStmt *body;
+		} while_stmt;
+		struct
+		{
+			struct AstStmt *init;
+			AstExpr *condition;
+			struct AstStmt *post;
+			struct AstStmt *body;
+		} for_stmt;
 		AstExpr *expr;
 	} data;
 } AstStmt;
@@ -214,6 +228,8 @@ AstStmt *ast_stmt_make_decl(TypeKind type, char *name, AstExpr *init);
 AstStmt *ast_stmt_make_assign(char *name, AstExpr *value);
 AstStmt *ast_stmt_make_array_decl(TypeKind type, char *name, size_t size, AstExpr *init);
 AstStmt *ast_stmt_make_array_assign(char *name, AstExpr *index, AstExpr *value);
+AstStmt *ast_stmt_make_while(AstExpr *condition, AstStmt *body);
+AstStmt *ast_stmt_make_for(AstStmt *init, AstExpr *condition, AstStmt *post, AstStmt *body);
 AstStmt *ast_stmt_make_expr(AstExpr *expr);
 AstStmt *ast_stmt_make_return(AstExpr *expr);
 AstExpr *ast_expr_make_array_literal(AstExprList *elements);
