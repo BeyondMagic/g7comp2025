@@ -38,8 +38,7 @@ sudo pacman -Syu flex bison base-devel git
 
 Build local (exemplo mínimo):
 ```bash
-make           # gera o binário ./c2lua a partir das fontes
-./c2lua tests/smoke/expressions.c
+make ./c2lua tests/smoke/expressions.c
 ```
 
 # Documentação de cada sprint
@@ -59,7 +58,6 @@ Execute as suítes pelo Makefile:
 
 ```bash
 make test            # verifica os smoke tests (tradução direta C -> Lua)
-make semantic-test   # valida casos PASS/FAIL com comparação de golden files
 ```
 
 Os golden files utilizam o mesmo nome-base do arquivo `.c`, com extensão `.lua` (para PASS) ou `.golden`/`.err` (para FAIL).
