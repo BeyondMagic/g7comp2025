@@ -38,7 +38,8 @@ sudo pacman -Syu flex bison base-devel git
 
 Build local (exemplo mínimo):
 ```bash
-make ./c2lua tests/smoke/expressions.c
+make 
+./c2lua tests/smoke/expressions.c
 ```
 
 # Documentação de cada sprint
