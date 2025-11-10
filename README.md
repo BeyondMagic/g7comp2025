@@ -62,3 +62,11 @@ make test            # verifica os smoke tests (tradução direta C -> Lua)
 ```
 
 Os golden files utilizam o mesmo nome-base do arquivo `.c`, com extensão `.lua` (para PASS) ou `.golden`/`.err` (para FAIL).
+
+# Membros
+
+- Andre Lopes de Sousa - 211031593
+- João Victor da Silva Batista de Farias - 221022604
+- Livia Rodrigues Reis - 180105051
+- Marco Marques de Castro - 211062197
+- Sophia Souza da Silva - 231026886
