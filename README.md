@@ -14,36 +14,59 @@ O que não será suportado:
 
 ```
 .
-├── lexer/        # regras léxicas (lexer.l)
-├── parser/       # gramática e ações (parser.y)
-├── src/          # main.c, AST, tabela de símbolos, gerador Lua
-├── tests/        # entradas C e saídas Lua esperadas
+├── lexer/       # regras léxicas (lexer.l)
+├── parser/      # gramática e ações (parser.y)
+├── src/         # main.c, AST, tabela de símbolos, gerador Lua
+├── tests/
+│   ├── pass/    # casos que devem passar
+│   └── fail/    # casos que precisam falhar
 └── Makefile
 ```
 
-Ambiente rápido (Linux):
-```nu
+## Ambiente de Desenvolvimento
+
+Ubuntu Linux:
+```bash
 sudo apt update
 sudo apt install -y flex bison build-essential git
 ```
 
+Arch Linux:
+```bash
+sudo pacman -Syu flex bison base-devel git
+```
+
 Build local (exemplo mínimo):
-```nu
-flex lexer/lexer.l
-bison -d parser/parser.y
-gcc -o c2lua lex.yy.c parser.tab.c src/*.c -lfl
-./c2lua < tests/exemplo.c > out.lua
+```bash
+make 
+./c2lua tests/pass/expressions.c
 ```
 
 # Documentação de cada sprint
 
 - [1ª sprint](./docs/sprints/1.md);
 - [2ª sprint](./docs/sprints/2.md);
-- 3ª sprint;
-- 4ª sprint;
+- [3ª sprint](./docs/sprints/3.md);
+- [4ª sprint](./docs/sprints/4.md);
 
 # Testes
 
-A pasta `tests/` contém arquivos `.c` de entrada e os correspondentes `.lua` esperados. Use `diff` para comparar a saída gerada com a esperada.
+A pasta `tests/` está organizada em:
+- `tests/semantic/pass`: casos que devem gerar Lua válido e executar com sucesso;
+- `tests/semantic/fail`: casos que precisam falhar na análise semântica (arquivos `.err` com a mensagem esperada);
 
-Padrão de nomenclatura: `descricao_curta_teste.c` para entrada, e `descricao_curta_teste.lua` para saída esperada.
+Execute as suítes pelo Makefile:
+
+```bash
+make test            # verifica os smoke tests (tradução direta C -> Lua)
+```
+
+Os golden files utilizam o mesmo nome-base do arquivo `.c`, com extensão `.lua` (para PASS) ou `.golden`/`.err` (para FAIL).
+
+# Membros
+
+- Andre Lopes de Sousa - 211031593
+- João Victor da Silva Batista de Farias - 221022604
+- Livia Rodrigues Reis - 180105051
+- Marco Marques de Castro - 211062197
+- Sophia Souza da Silva - 231026886

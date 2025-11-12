@@ -16,6 +16,13 @@ LEX_OUT = lex.yy.c
 YACC_OUT = parser.tab.c
 YACC_HEADER = parser.tab.h
 
+PASS_DIR = tests/pass
+PASS_SOURCES := $(wildcard $(PASS_DIR)/*.c)
+PASS_CASES := $(basename $(notdir $(PASS_SOURCES)))
+FAIL_DIR = tests/fail
+FAIL_SOURCES := $(wildcard $(FAIL_DIR)/*.c)
+FAIL_CASES := $(basename $(notdir $(FAIL_SOURCES)))
+
 all: $(TARGET)
 
 $(TARGET): $(LEX_OUT) $(YACC_OUT) $(SRC)
@@ -30,22 +37,66 @@ $(YACC_OUT) $(YACC_HEADER): $(YACC_SRC) src/ast.h src/ast.c
 clean:
 	rm -f $(TARGET) $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER)
 
-TEST_CASES = \
-	expressions \
-	variable
+test: test-pass test-fail
 
-test: all
-	@echo "== Running sample tests =="
-	@for case in $(TEST_CASES); do \
-		output=$$(./c2lua tests/$$case.c); \
-		expected=$$(cat tests/$$case.lua); \
-		printf '%s' "-- $$case... "; \
-		if [ "$$output" = "$$expected" ]; then \
-			echo "ok"; \
-		else \
-			echo "fail"; \
-			printf 'Expected:\n%s\n\nGot:\n%s\n' "$$expected" "$$output"; \
-			exit 1; \
-		fi; \
-	done
-	@echo "All tests passed."
+test-pass: all
+	@echo "== Running pass tests =="
+	@if [ -z "$(PASS_CASES)" ]; then \
+		echo "No pass tests found under $(PASS_DIR)"; \
+	else \
+		for case in $(PASS_CASES); do \
+			input="$(PASS_DIR)/$$case.c"; \
+			expected_file="$(PASS_DIR)/$$case.lua"; \
+			if [ ! -f "$$expected_file" ]; then \
+				echo "Missing expected Lua file for $$case"; \
+				exit 1; \
+			fi; \
+			output=$$(./c2lua "$$input"); \
+			expected=$$(cat "$$expected_file"); \
+			printf '%s' "-- $$case... "; \
+			if [ "$$output" = "$$expected" ]; then \
+				echo "ok"; \
+			else \
+				echo "fail"; \
+				printf 'Expected:\n%s\n\nGot:\n%s\n' "$$expected" "$$output"; \
+				exit 1; \
+			fi; \
+		done; \
+		echo "All pass tests passed."; \
+	fi
+
+test-fail: all
+	@echo "== Running fail tests =="
+	@if [ -z "$(FAIL_CASES)" ]; then \
+		echo "No fail tests found under $(FAIL_DIR)"; \
+	else \
+		for case in $(FAIL_CASES); do \
+			input="$(FAIL_DIR)/$$case.c"; \
+			expected_err="$(FAIL_DIR)/$$case.err"; \
+			if [ ! -f "$$expected_err" ]; then \
+				echo "Missing expected .err file for $$case"; \
+				exit 1; \
+			fi; \
+			tmp_err=$$(mktemp); \
+			if ./c2lua "$$input" > /dev/null 2> "$$tmp_err"; then \
+				echo "-- $$case... fail"; \
+				echo "Expected compilation error but succeeded."; \
+				rm -f "$$tmp_err"; \
+				exit 1; \
+			fi; \
+			if diff -u "$$expected_err" "$$tmp_err" > /dev/null; then \
+				echo "-- $$case... ok"; \
+			else \
+				echo "-- $$case... fail"; \
+				echo "Expected:"; \
+				cat "$$expected_err"; \
+				echo; \
+				echo "Got:"; \
+				cat "$$tmp_err"; \
+				rm -f "$$tmp_err"; \
+				exit 1; \
+			fi; \
+			rm -f "$$tmp_err"; \
+		done; \
+		echo "All fail tests passed."; \
+	fi

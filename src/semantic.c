@@ -11,7 +11,9 @@ static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *s
 static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
 static int ensure_assignable(TypeKind target, TypeKind value);
 static int is_numeric(TypeKind type);
+static int is_boolean_like(TypeKind type);
 static TypeKind arithmetic_result(TypeKind left, TypeKind right);
+static TypeKind analyze_builtin_call(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr);
 
 static int semantic_error_flag = 0;
 
@@ -86,7 +88,7 @@ static int analyze_function(SemanticInfo *info, AstFunction *fn)
 			symbol_table_free(&symbols);
 			return 0;
 		}
-		if (!symbol_table_add(&symbols, param->name, param->type))
+		if (!symbol_table_add(&symbols, param->name, param->type, 0, 0, TYPE_UNKNOWN))
 		{
 			semantic_error("duplicate parameter '%s' in function '%s'", param->name, fn->name);
 			symbol_table_free(&symbols);
@@ -168,23 +170,76 @@ static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *s
 			semantic_error("variable '%s' in function '%s' cannot be void", stmt->data.decl.name, fn->name);
 			return 0;
 		}
-		if (!symbol_table_add(symbols, stmt->data.decl.name, stmt->data.decl.type))
+		if (stmt->data.decl.is_array)
 		{
-			semantic_error("duplicate declaration of '%s' in function '%s'", stmt->data.decl.name, fn->name);
-			return 0;
-		}
-		if (stmt->data.decl.init)
-		{
-			TypeKind expr_type = analyze_expression(info, symbols, stmt->data.decl.init);
-			stmt->data.decl.init->type = expr_type;
-			if (!ensure_assignable(stmt->data.decl.type, expr_type))
+			if (stmt->data.decl.array_size == 0)
 			{
-				semantic_error("cannot initialize '%s' of type %s with expression of type %s in function '%s'",
+				semantic_error("array '%s' in function '%s' must have size greater than zero",
 							   stmt->data.decl.name,
-							   ast_type_name(stmt->data.decl.type),
-							   ast_type_name(expr_type),
 							   fn->name);
 				return 0;
+			}
+			if (!symbol_table_add(symbols,
+								  stmt->data.decl.name,
+								  TYPE_ARRAY,
+								  1,
+								  stmt->data.decl.array_size,
+								  stmt->data.decl.type))
+			{
+				semantic_error("duplicate declaration of '%s' in function '%s'", stmt->data.decl.name, fn->name);
+				return 0;
+			}
+			if (stmt->data.decl.array_init)
+			{
+				AstExpr *init = stmt->data.decl.array_init;
+				if (!init || init->kind != EXPR_ARRAY_LITERAL)
+				{
+					semantic_error("array '%s' initializer must be an array literal", stmt->data.decl.name);
+					return 0;
+				}
+				size_t count = init->data.array_literal.elements.count;
+				if (count > stmt->data.decl.array_size)
+				{
+					semantic_error("array '%s' initializer has too many elements", stmt->data.decl.name);
+					return 0;
+				}
+				for (size_t i = 0; i < count; ++i)
+				{
+					AstExpr *elem = init->data.array_literal.elements.items[i];
+					TypeKind elem_type = analyze_expression(info, symbols, elem);
+					elem->type = elem_type;
+					if (!ensure_assignable(stmt->data.decl.type, elem_type))
+					{
+						semantic_error("initializer %zu for array '%s' expected %s but got %s",
+									   i + 1,
+									   stmt->data.decl.name,
+									   ast_type_name(stmt->data.decl.type),
+									   ast_type_name(elem_type));
+						return 0;
+					}
+				}
+			}
+		}
+		else
+		{
+			if (!symbol_table_add(symbols, stmt->data.decl.name, stmt->data.decl.type, 0, 0, TYPE_UNKNOWN))
+			{
+				semantic_error("duplicate declaration of '%s' in function '%s'", stmt->data.decl.name, fn->name);
+				return 0;
+			}
+			if (stmt->data.decl.init)
+			{
+				TypeKind expr_type = analyze_expression(info, symbols, stmt->data.decl.init);
+				stmt->data.decl.init->type = expr_type;
+				if (!ensure_assignable(stmt->data.decl.type, expr_type))
+				{
+					semantic_error("cannot initialize '%s' of type %s with expression of type %s in function '%s'",
+								   stmt->data.decl.name,
+								   ast_type_name(stmt->data.decl.type),
+								   ast_type_name(expr_type),
+								   fn->name);
+					return 0;
+				}
 			}
 		}
 		break;
@@ -211,6 +266,44 @@ static int analyze_statement(SemanticInfo *info, AstFunction *fn, SymbolTable *s
 						   fn->name);
 			return 0;
 		}
+		break;
+	}
+	case STMT_ARRAY_ASSIGN:
+	{
+		const Symbol *symbol = symbol_table_lookup(symbols, stmt->data.array_assign.name);
+		if (!symbol)
+		{
+			semantic_error("assignment to undeclared identifier '%s' in function '%s'",
+						   stmt->data.array_assign.name,
+						   fn->name);
+			return 0;
+		}
+		if (!symbol->is_array)
+		{
+			semantic_error("identifier '%s' in function '%s' is not an array",
+						   stmt->data.array_assign.name,
+						   fn->name);
+			return 0;
+		}
+		TypeKind index_type = analyze_expression(info, symbols, stmt->data.array_assign.index);
+		stmt->data.array_assign.index->type = index_type;
+		if (index_type != TYPE_INT)
+		{
+			semantic_error("array index for '%s' must be integer", stmt->data.array_assign.name);
+			return 0;
+		}
+		TypeKind value_type = analyze_expression(info, symbols, stmt->data.array_assign.value);
+		stmt->data.array_assign.value->type = value_type;
+		if (!ensure_assignable(symbol->element_type, value_type))
+		{
+			semantic_error("cannot assign expression of type %s to element of '%s' (type %s)",
+						   ast_type_name(value_type),
+						   stmt->data.array_assign.name,
+						   ast_type_name(symbol->element_type));
+			return 0;
+		}
+		stmt->data.array_assign.element_type = symbol->element_type;
+		stmt->data.array_assign.array_size = symbol->array_size;
 		break;
 	}
 	case STMT_EXPR:
@@ -274,6 +367,20 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 	case EXPR_BOOL_LITERAL:
 		expr->type = TYPE_BOOL;
 		return expr->type;
+	case EXPR_STRING_LITERAL:
+		expr->type = TYPE_STRING;
+		return expr->type;
+	case EXPR_ARRAY_LITERAL:
+	{
+		for (size_t i = 0; i < expr->data.array_literal.elements.count; ++i)
+		{
+			AstExpr *elem = expr->data.array_literal.elements.items[i];
+			TypeKind elem_type = analyze_expression(info, symbols, elem);
+			elem->type = elem_type;
+		}
+		expr->type = TYPE_ARRAY;
+		return expr->type;
+	}
 	case EXPR_IDENTIFIER:
 	{
 		const Symbol *symbol = symbol_table_lookup(symbols, expr->data.identifier);
@@ -284,6 +391,40 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 			return expr->type;
 		}
 		expr->type = symbol->type;
+		return expr->type;
+	}
+	case EXPR_SUBSCRIPT:
+	{
+		AstExpr *array_expr = expr->data.subscript.array;
+		AstExpr *index_expr = expr->data.subscript.index;
+		TypeKind array_type = analyze_expression(info, symbols, array_expr);
+		array_expr->type = array_type;
+		if (array_expr->kind != EXPR_IDENTIFIER)
+		{
+			semantic_error("array subscript base must be an identifier");
+			expr->type = TYPE_UNKNOWN;
+			return expr->type;
+		}
+		const Symbol *symbol = symbol_table_lookup(symbols, array_expr->data.identifier);
+		if (!symbol)
+		{
+			semantic_error("use of undeclared identifier '%s'", array_expr->data.identifier);
+			expr->type = TYPE_UNKNOWN;
+			return expr->type;
+		}
+		if (!symbol->is_array)
+		{
+			semantic_error("identifier '%s' is not an array", array_expr->data.identifier);
+			expr->type = TYPE_UNKNOWN;
+			return expr->type;
+		}
+		TypeKind index_type = analyze_expression(info, symbols, index_expr);
+		index_expr->type = index_type;
+		if (index_type != TYPE_INT)
+		{
+			semantic_error("array index for '%s' must be integer", array_expr->data.identifier);
+		}
+		expr->type = symbol->element_type;
 		return expr->type;
 	}
 	case EXPR_UNARY:
@@ -300,6 +441,10 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 		}
 		else if (expr->data.unary.op == UN_OP_NOT)
 		{
+			if (!is_boolean_like(operand_type))
+			{
+				semantic_error("logical not expects boolean or numeric operand");
+			}
 			expr->type = TYPE_BOOL;
 		}
 		else
@@ -352,11 +497,25 @@ static TypeKind analyze_expression(SemanticInfo *info, SymbolTable *symbols, Ast
 			}
 			expr->type = TYPE_BOOL;
 			return expr->type;
+		case BIN_OP_AND:
+		case BIN_OP_OR:
+			if (!is_boolean_like(left_type) || !is_boolean_like(right_type))
+			{
+				semantic_error("logical operator expects boolean or numeric operands");
+			}
+			expr->type = TYPE_BOOL;
+			return expr->type;
 		}
 		break;
 	}
 	case EXPR_CALL:
 	{
+		TypeKind builtin = analyze_builtin_call(info, symbols, expr);
+		if (builtin != TYPE_UNKNOWN)
+		{
+			expr->type = builtin;
+			return expr->type;
+		}
 		const FunctionSignature *signature = function_table_find(&info->functions, expr->data.call.callee);
 		if (!signature)
 		{
@@ -407,6 +566,22 @@ static int ensure_assignable(TypeKind target, TypeKind value)
 	{
 		return 1;
 	}
+	if (target == TYPE_ARRAY || value == TYPE_ARRAY)
+	{
+		return target == TYPE_ARRAY && value == TYPE_ARRAY;
+	}
+	if (target == TYPE_STRING || value == TYPE_STRING)
+	{
+		return target == TYPE_STRING && value == TYPE_STRING;
+	}
+	if (target == TYPE_BOOL && (value == TYPE_INT || value == TYPE_FLOAT || value == TYPE_BOOL))
+	{
+		return 1;
+	}
+	if ((target == TYPE_INT || target == TYPE_FLOAT) && value == TYPE_BOOL)
+	{
+		return 1;
+	}
 	if (is_numeric(target) && is_numeric(value))
 	{
 		return 1;
@@ -423,6 +598,11 @@ static int is_numeric(TypeKind type)
 	return type == TYPE_INT || type == TYPE_FLOAT;
 }
 
+static int is_boolean_like(TypeKind type)
+{
+	return type == TYPE_BOOL || type == TYPE_INT || type == TYPE_FLOAT;
+}
+
 static TypeKind arithmetic_result(TypeKind left, TypeKind right)
 {
 	if (left == TYPE_FLOAT || right == TYPE_FLOAT)
@@ -430,4 +610,52 @@ static TypeKind arithmetic_result(TypeKind left, TypeKind right)
 		return TYPE_FLOAT;
 	}
 	return TYPE_INT;
+}
+
+static TypeKind analyze_builtin_call(SemanticInfo *info, SymbolTable *symbols, AstExpr *expr)
+{
+	if (!expr || expr->kind != EXPR_CALL)
+	{
+		return TYPE_UNKNOWN;
+	}
+	const char *callee = expr->data.call.callee;
+	if (strcmp(callee, "printf") == 0)
+	{
+		if (expr->data.call.args.count == 0)
+		{
+			semantic_error("printf expects at least one argument");
+			return TYPE_UNKNOWN;
+		}
+		AstExpr *format = expr->data.call.args.items[0];
+		TypeKind format_type = analyze_expression(info, symbols, format);
+		format->type = format_type;
+		if (format_type != TYPE_STRING)
+		{
+			semantic_error("printf format argument must be string");
+		}
+		for (size_t i = 1; i < expr->data.call.args.count; ++i)
+		{
+			AstExpr *arg = expr->data.call.args.items[i];
+			TypeKind arg_type = analyze_expression(info, symbols, arg);
+			arg->type = arg_type;
+		}
+		return TYPE_INT;
+	}
+	if (strcmp(callee, "puts") == 0)
+	{
+		if (expr->data.call.args.count != 1)
+		{
+			semantic_error("puts expects exactly one argument");
+			return TYPE_UNKNOWN;
+		}
+		AstExpr *arg = expr->data.call.args.items[0];
+		TypeKind arg_type = analyze_expression(info, symbols, arg);
+		arg->type = arg_type;
+		if (arg_type != TYPE_STRING)
+		{
+			semantic_error("puts argument must be string");
+		}
+		return TYPE_INT;
+	}
+	return TYPE_UNKNOWN;
 }

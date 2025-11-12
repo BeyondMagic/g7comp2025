@@ -9,6 +9,8 @@ typedef enum
 	TYPE_INT,
 	TYPE_FLOAT,
 	TYPE_BOOL,
+	TYPE_STRING,
+	TYPE_ARRAY,
 	TYPE_VOID
 } TypeKind;
 
@@ -24,7 +26,9 @@ typedef enum
 	BIN_OP_LT,
 	BIN_OP_LE,
 	BIN_OP_GT,
-	BIN_OP_GE
+	BIN_OP_GE,
+	BIN_OP_AND,
+	BIN_OP_OR
 } AstBinaryOp;
 
 typedef enum
@@ -81,10 +85,13 @@ typedef struct AstExpr
 		EXPR_INT_LITERAL,
 		EXPR_FLOAT_LITERAL,
 		EXPR_BOOL_LITERAL,
+		EXPR_STRING_LITERAL,
 		EXPR_IDENTIFIER,
 		EXPR_BINARY,
 		EXPR_UNARY,
-		EXPR_CALL
+		EXPR_CALL,
+		EXPR_ARRAY_LITERAL,
+		EXPR_SUBSCRIPT
 	} kind;
 	TypeKind type;
 	union
@@ -92,6 +99,7 @@ typedef struct AstExpr
 		long long int_value;
 		double float_value;
 		int bool_value;
+		char *string_literal;
 		char *identifier;
 		struct
 		{
@@ -109,6 +117,15 @@ typedef struct AstExpr
 			char *callee;
 			AstExprList args;
 		} call;
+		struct
+		{
+			AstExprList elements;
+		} array_literal;
+		struct
+		{
+			struct AstExpr *array;
+			struct AstExpr *index;
+		} subscript;
 	} data;
 } AstExpr;
 
@@ -124,6 +141,7 @@ typedef struct AstStmt
 		STMT_BLOCK,
 		STMT_DECL,
 		STMT_ASSIGN,
+		STMT_ARRAY_ASSIGN,
 		STMT_EXPR,
 		STMT_RETURN
 	} kind;
@@ -135,6 +153,9 @@ typedef struct AstStmt
 			TypeKind type;
 			char *name;
 			AstExpr *init;
+			int is_array;
+			size_t array_size;
+			AstExpr *array_init;
 		} decl;
 		struct
 		{
@@ -142,6 +163,14 @@ typedef struct AstStmt
 			AstExpr *value;
 			TypeKind type;
 		} assign;
+		struct
+		{
+			char *name;
+			AstExpr *index;
+			AstExpr *value;
+			TypeKind element_type;
+			size_t array_size;
+		} array_assign;
 		AstExpr *expr;
 	} data;
 } AstStmt;
@@ -183,12 +212,17 @@ AstBlock ast_block_from_list(AstStmtList *list);
 AstStmt *ast_stmt_make_block(AstBlock *block);
 AstStmt *ast_stmt_make_decl(TypeKind type, char *name, AstExpr *init);
 AstStmt *ast_stmt_make_assign(char *name, AstExpr *value);
+AstStmt *ast_stmt_make_array_decl(TypeKind type, char *name, size_t size, AstExpr *init);
+AstStmt *ast_stmt_make_array_assign(char *name, AstExpr *index, AstExpr *value);
 AstStmt *ast_stmt_make_expr(AstExpr *expr);
 AstStmt *ast_stmt_make_return(AstExpr *expr);
+AstExpr *ast_expr_make_array_literal(AstExprList *elements);
+AstExpr *ast_expr_make_subscript(AstExpr *array, AstExpr *index);
 
 AstExpr *ast_expr_make_int(long long value);
 AstExpr *ast_expr_make_float(double value);
 AstExpr *ast_expr_make_bool(int value);
+AstExpr *ast_expr_make_string(char *value);
 AstExpr *ast_expr_make_identifier(char *name);
 AstExpr *ast_expr_make_binary(AstBinaryOp op, AstExpr *left, AstExpr *right);
 AstExpr *ast_expr_make_unary(AstUnaryOp op, AstExpr *operand);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMPILER_CMD="${COMPILER_CMD:-compiler --semantic}"
+COMPILER_CMD="${COMPILER_CMD:-./c2lua}"
 
 RED=$(printf '\033[31m')
 GRN=$(printf '\033[32m')
@@ -28,7 +28,7 @@ echo ""
 echo "== FAIL cases =="
 for f in tests/semantic/fail/*.c; do
   base=$(basename "$f")
-  golden="tests/golden/fail/${base}.golden"
+  golden="tests/semantic/golden/fail/${base}.golden"
   if $COMPILER_CMD "$f" >/dev/null 2>tmp.err; then
     echo -e "${RED}FAIL (expected error, got success)${RST} $f"
     fail_count+=1
